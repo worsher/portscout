@@ -2,18 +2,73 @@
 
 本机端口服务的侦察与调度工具，为多 AI agent 并行开发场景设计：回答「哪个端口被谁占、属于哪个项目」，提供带护栏的端口预留与服务停止能力，防止 agent 之间端口冲突与互相误杀。
 
-## 核心能力
+## 安装
 
-- **扫描归属**：`list` / `whois` — 端口 → PID → 项目目录 → 启动命令 → 来源（claude-code / cursor / antigravity / 终端 / 孤儿）
-- **端口预留**：`claim` / `release` — 幂等 + 粘性分配，同一项目服务地址可预测
-- **带护栏处置**：`stop` / `gc` — 孤儿与自己的服务直接停；他人的活跃服务默认拦截（agent 走退出码 3，人走确认对话框）
-- **监视**：`watch` 终端仪表盘 / `menubar` SwiftBar 菜单栏插件
-- **agent 友好**：全命令 `--json`，退出码语义化，两行 CLAUDE.md 约定即可接入
+```bash
+pnpm install && pnpm build && pnpm link --global
+portscout --help
+```
 
-## 状态
+菜单栏（可选）：`brew install swiftbar`，启动 SwiftBar 后运行 `portscout menubar --install`。
 
-设计已定稿（见 [docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md)），实现进行中。
+## 命令
 
-## 环境
+| 命令 | 说明 |
+|---|---|
+| `portscout list [--json] [--all] [--project .]` | 扫描监听端口 → 项目/来源/状态（●正常 ◐预留 ○未注册 ⚠漂移） |
+| `portscout whois <port> [--json]` | 单端口归属详情：项目目录、启动命令、来源 |
+| `portscout claim <name> [--prefer N] [--range A-B] [--json]` | 预留端口（幂等 + 粘性），stdout 仅输出端口号 |
+| `portscout release <name>` | 释放预留（不停进程；服务仍在运行时会提示） |
+| `portscout stop <port\|name> [--force\|--gui] [--json]` | 带护栏停止：孤儿/自己的直接停，他人活跃服务拦截 |
+| `portscout gc [--kill-orphans]` | 回收过期预留，列出/停止孤儿服务 |
+| `portscout watch` | 终端实时仪表盘（2s 刷新，q 退出） |
+| `portscout menubar [--install]` | SwiftBar 菜单栏插件（点击可停止服务，含确认护栏） |
 
-macOS · Node.js ≥ 18 · 零运行时依赖
+## 典型用法
+
+```bash
+# agent 启动 dev server 前预留端口（同一项目同名重复 claim 返回同一端口）
+PORT=$(portscout claim web --prefer 3000)
+npm run dev -- --port "$PORT"
+
+# 「3000 是谁的？」
+portscout whois 3000
+
+# 我这个项目现在跑着哪些服务
+portscout list --project . --json
+
+# 端口被占，带护栏处置（他人活跃服务会被拦截并显示归属）
+portscout stop 3000
+```
+
+## 三级停止护栏
+
+| 目标服务 | 默认行为 |
+|---|---|
+| 孤儿（父进程已退出） | 直接停 |
+| 自己的（调用方项目内，或预留记录属于调用方） | 直接停 |
+| 他人的活跃服务 | 拦截并打印归属，agent 得到退出码 3；`--force` 放行；`--gui` 弹系统确认框 |
+
+## 退出码
+
+`0` 成功 · `1` 一般错误 · `2` 未找到 · `3` 被安全规则拦截（stop 他人活跃服务，需 --force）· `4` 注册表锁竞争超时（可重试）
+
+## agent 接入（CLAUDE.md 约定）
+
+```
+- 启动任何 dev server 前，先 `PORT=$(portscout claim <服务名> --prefer <默认端口>)` 获取端口
+- 找服务/怀疑冲突时，用 `portscout list --project . --json` 看本项目、`portscout whois <端口>` 查归属
+- 端口被占需要处置时用 `portscout stop <端口>`；退出码 3 表示是别人的活跃服务，向用户展示归属并请示，不要 --force
+```
+
+## 开发
+
+```bash
+pnpm test    # 单元测试（45 个，纯 fixture，不碰真实系统命令）
+pnpm smoke   # 端到端冒烟（起真实 http.server 验证归属/claim/stop 全链路）
+pnpm build   # tsc
+```
+
+设计文档：[docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md) · 实施计划：[docs/plans/2026-07-16-portscout-implementation.md](docs/plans/2026-07-16-portscout-implementation.md)
+
+macOS · Node ≥ 18 · 零运行时依赖
