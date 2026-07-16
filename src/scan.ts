@@ -121,8 +121,8 @@ export function classifyTarget(
   if (proj && (proj === callerCwd || proj.startsWith(callerCwd + "/") || callerCwd.startsWith(proj + "/"))) {
     return "own";
   }
-  const reg = registry.find((r) => !r.released && proc.ports.includes(r.port));
-  if (reg && reg.project === callerCwd) return "own";
+  const owned = registry.find((r) => !r.released && proc.ports.includes(r.port) && r.project === callerCwd);
+  if (owned) return "own";
   return "foreign";
 }
 
@@ -132,12 +132,21 @@ export async function terminate(
   kill: (pid: number, sig: NodeJS.Signals) => void = (p, s) => process.kill(p, s),
   alive: (pid: number) => boolean = (p) => { try { process.kill(p, 0); return true; } catch { return false; } },
 ): Promise<"term" | "kill" | "gone"> {
-  try { kill(pid, "SIGTERM"); } catch { return "gone"; }
+  try {
+    kill(pid, "SIGTERM");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ESRCH") return "gone";
+    throw e;
+  }
   const start = Date.now();
   while (Date.now() - start < waitMs) {
     await new Promise((r) => setTimeout(r, 100));
     if (!alive(pid)) return "term";
   }
-  try { kill(pid, "SIGKILL"); } catch {}
+  try {
+    kill(pid, "SIGKILL");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ESRCH") throw e;
+  }
   return "kill";
 }

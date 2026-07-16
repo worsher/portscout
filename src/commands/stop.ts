@@ -11,6 +11,11 @@ function osascript(script: string): Promise<{ ok: boolean }> {
   });
 }
 
+/** 转义字符串用于嵌入 AppleScript 双引号字面量 */
+function asStr(s: string | number): string {
+  return JSON.stringify(String(s)); // 产出带引号的字面量，AppleScript 转义规则与 JSON 兼容
+}
+
 function notify(msg: string): void {
   void osascript(`display notification ${JSON.stringify(msg)} with title "portscout"`);
 }
@@ -48,8 +53,10 @@ export default async function stop(flags: Flags): Promise<number> {
 
   if (kind === "foreign" && !flags.force) {
     if (flags.gui) {
+      const proj = resolveProjectDir(proc) ?? "?";
+      const dialogText = `"端口 " & ${asStr(port)} & " 是 " & ${asStr(proc.source)} & " 在 " & ${asStr(proj)} & " 的活跃服务，确定停止？"`;
       const { ok } = await osascript(
-        `display dialog "端口 ${port} 是 ${proc.source} 在 ${resolveProjectDir(proc) ?? "?"} 的活跃服务，确定停止？" with title "portscout" buttons {"取消","停止"} default button "取消" cancel button "取消" with icon caution`,
+        `display dialog ${dialogText} with title "portscout" buttons {"取消","停止"} default button "取消" cancel button "取消" with icon caution`,
       );
       if (!ok) return EXIT.OK; // 用户取消
     } else {

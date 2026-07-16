@@ -28,6 +28,17 @@ test("classifyTarget: 他人活跃服务 → foreign", () => {
   assert.equal(classifyTarget(proc({}), "/p/me", []), "foreign");
 });
 
+test("classifyTarget: 多端口进程的注册归属判定与数组顺序无关", () => {
+  const multi = proc({ ports: [3000, 3001] });
+  const forward: RegistryEntry[] = [
+    { name: "a", project: "/other", port: 3000, claimedAt: new Date().toISOString() },
+    { name: "b", project: "/p/me", port: 3001, claimedAt: new Date().toISOString() },
+  ];
+  assert.equal(classifyTarget(multi, "/p/me", forward), "own");
+  const reversed: RegistryEntry[] = [forward[1], forward[0]];
+  assert.equal(classifyTarget(multi, "/p/me", reversed), "own");
+});
+
 test("terminate: SIGTERM 即退 → term", async () => {
   let sent: string[] = [];
   let aliveCalls = 0;
@@ -49,4 +60,16 @@ test("terminate: 超时后 SIGKILL → kill", async () => {
   );
   assert.equal(result, "kill");
   assert.deepEqual(sent, ["SIGTERM", "SIGKILL"]);
+});
+
+test("terminate: SIGTERM 命中 ESRCH 返回 gone", async () => {
+  const r = await terminate(42, 200, () => { const e: NodeJS.ErrnoException = new Error("no such process"); e.code = "ESRCH"; throw e; }, () => true);
+  assert.equal(r, "gone");
+});
+
+test("terminate: EPERM 向上抛出，不谎报成功", async () => {
+  await assert.rejects(
+    terminate(42, 200, () => { const e: NodeJS.ErrnoException = new Error("op not permitted"); e.code = "EPERM"; throw e; }, () => true),
+    /EPERM|op not permitted/,
+  );
 });
