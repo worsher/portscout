@@ -5,9 +5,11 @@
 ## 安装
 
 ```bash
-pnpm install && pnpm build && pnpm link --global
+npm install -g @worsher/portscout
 portscout --help
 ```
+
+或从源码：`pnpm install && pnpm build && npm link`
 
 菜单栏（可选）：`brew install swiftbar`，启动 SwiftBar 后运行 `portscout menubar --install`。
 

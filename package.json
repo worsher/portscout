@@ -1,6 +1,7 @@
 {
-  "name": "portscout",
+  "name": "@worsher/portscout",
   "version": "0.1.0",
+  "publishConfig": { "access": "public" },
   "description": "本机端口服务侦察与调度，防多 agent 端口冲突 — port recon & guarded orchestration for multi-agent local dev",
   "type": "module",
   "bin": { "portscout": "dist/cli.js" },
