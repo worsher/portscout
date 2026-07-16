@@ -79,3 +79,8 @@ test("stop --force 能停止服务并且端口释放", async () => {
   const { code: whoisCode } = await cli(["whois", String(PORT)]);
   assert.equal(whoisCode, 2);
 });
+
+test("watch 非 TTY 输出单帧后退出而非死循环", async () => {
+  const { code } = await cli(["watch"]);
+  assert.equal(code, 0);
+});

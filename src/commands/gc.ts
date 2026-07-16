@@ -22,9 +22,14 @@ export default async function gc(flags: Flags): Promise<number> {
   for (const p of orphans) {
     const desc = `${p.ports.join(",")} · pid ${p.pid} · ${resolveProjectDir(p) ?? "?"} · ${p.command.slice(0, 60)}`;
     if (flags.killOrphans) {
-      const how = await terminate(p.pid);
-      for (const port of p.ports) await registry.markReleasedByPort(port);
-      process.stderr.write(`${C.yellow}已停止孤儿${C.reset} ${desc}（${how}）\n`);
+      try {
+        const how = await terminate(p.pid);
+        for (const port of p.ports) await registry.markReleasedByPort(port);
+        process.stderr.write(`${C.yellow}已停止孤儿${C.reset} ${desc}（${how}）\n`);
+      } catch (e) {
+        // 单个孤儿停止失败（如无权限）不中断整批处理
+        process.stderr.write(`${C.red}停止失败${C.reset} ${desc}：${(e as Error).message}\n`);
+      }
     } else {
       process.stderr.write(`${C.yellow}孤儿服务${C.reset} ${desc}\n`);
     }

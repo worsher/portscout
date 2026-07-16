@@ -66,8 +66,9 @@ export class Registry {
       } catch {
         if (Date.now() - start > 2000) {
           const holderRaw = await fs.readFile(pidFile, "utf8").catch(() => null);
-          if (holderRaw === null) {
-            // pid 文件尚未写入：持有者可能正处于「mkdir 成功但还没来得及写 pid」的窗口期。
+          const holder = holderRaw === null ? NaN : Number(holderRaw);
+          if (!Number.isFinite(holder) || holder <= 0) {
+            // pid 缺失或内容无效（撕裂写入）：持有者可能正处于「mkdir 成功但还没写完 pid」的窗口期。
             // 只有当 lockDir 本身足够老（大概率是崩溃进程的残留）才视为可回收，否则耐心等待。
             const st = await fs.stat(lockDir).catch(() => null);
             if (st && Date.now() - st.mtimeMs > 10_000) {
@@ -76,8 +77,7 @@ export class Registry {
             await new Promise((r) => setTimeout(r, 50));
             continue;
           }
-          const holder = Number(holderRaw);
-          if (holder && isAlive(holder)) throw new LockTimeoutError();
+          if (isAlive(holder)) throw new LockTimeoutError();
           await fs.rm(lockDir, { recursive: true, force: true });
           await new Promise((r) => setTimeout(r, 50));
           continue;

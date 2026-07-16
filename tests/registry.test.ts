@@ -115,3 +115,14 @@ test("claim 可夺取已死进程遗留的锁", async () => {
   const { port } = await r.claim({ name: "web", project: "/p", prefer: 3000, portFree: async () => true });
   assert.equal(port, 3000);
 });
+
+test("偷锁对无效 pid 文件走 mtime 宽限：内容为空且锁目录足够老时可夺取", async () => {
+  const r = await tmpRegistry();
+  const lockDir = path.join(r.dir, ".lock");
+  await fs.mkdir(lockDir, { recursive: true });
+  await fs.writeFile(path.join(lockDir, "pid"), ""); // 撕裂写入残留
+  const old = new Date(Date.now() - 15_000);
+  await fs.utimes(lockDir, old, old); // 锁目录 15 秒前 → 超过 10s 宽限
+  const { port } = await r.claim({ name: "web", project: "/p", prefer: 3000, portFree: async () => true });
+  assert.equal(port, 3000);
+});

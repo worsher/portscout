@@ -71,7 +71,8 @@ export default async function stop(flags: Flags): Promise<number> {
   }
 
   const how = await terminate(proc.pid);
-  await registry.markReleasedByPort(port);
+  // 进程可能监听多个端口，全部预留记录一并清理
+  for (const p of proc.ports) await registry.markReleasedByPort(p);
   const msg = how === "gone" ? `进程已不存在，已清理注册记录` : `已停止 ${desc}${how === "kill" ? "（SIGKILL）" : ""}`;
   if (flags.json) {
     process.stdout.write(JSON.stringify({ stopped: true, port, pid: proc.pid, how }) + "\n");
