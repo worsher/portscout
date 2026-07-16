@@ -63,7 +63,9 @@ const COMMANDS: Record<string, () => Promise<{ default: CommandFn }>> = {
   whois: () => import("./commands/whois.js"),
   claim: () => import("./commands/claim.js"),
   release: () => import("./commands/release.js"),
-  // 后续任务在此注册: stop, gc, watch, menubar
+  stop: () => import("./commands/stop.js"),
+  gc: () => import("./commands/gc.js"),
+  // 后续任务在此注册: watch, menubar
 };
 
 async function main(): Promise<number> {

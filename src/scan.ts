@@ -1,4 +1,4 @@
-import type { ListenEntry, ProcessInfo, PsRow } from "./types.js";
+import type { ListenEntry, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
 import { realExec, type Exec } from "./exec.js";
 
 export function parseLsofListeners(text: string): ListenEntry[] {
@@ -109,4 +109,35 @@ export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[
 export function resolveProjectDir(p: Omit<ProcessInfo, "cwd" | "inferredProject"> & { cwd: string | null; inferredProject: string | null }): string | null {
   if (p.cwd && p.cwd !== "/" && !p.cwd.startsWith("/System")) return p.cwd;
   return p.inferredProject ?? p.cwd;
+}
+
+export function classifyTarget(
+  proc: ProcessInfo,
+  callerCwd: string,
+  registry: RegistryEntry[],
+): "orphan" | "own" | "foreign" {
+  if (proc.source === "orphan") return "orphan";
+  const proj = resolveProjectDir(proc);
+  if (proj && (proj === callerCwd || proj.startsWith(callerCwd + "/") || callerCwd.startsWith(proj + "/"))) {
+    return "own";
+  }
+  const reg = registry.find((r) => !r.released && proc.ports.includes(r.port));
+  if (reg && reg.project === callerCwd) return "own";
+  return "foreign";
+}
+
+export async function terminate(
+  pid: number,
+  waitMs = 3000,
+  kill: (pid: number, sig: NodeJS.Signals) => void = (p, s) => process.kill(p, s),
+  alive: (pid: number) => boolean = (p) => { try { process.kill(p, 0); return true; } catch { return false; } },
+): Promise<"term" | "kill" | "gone"> {
+  try { kill(pid, "SIGTERM"); } catch { return "gone"; }
+  const start = Date.now();
+  while (Date.now() - start < waitMs) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (!alive(pid)) return "term";
+  }
+  try { kill(pid, "SIGKILL"); } catch {}
+  return "kill";
 }
