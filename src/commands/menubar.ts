@@ -8,6 +8,11 @@ import { scanListeners, isNoise, resolveProjectDir } from "../scan.js";
 import { mergeScanRegistry } from "../merge.js";
 import { Registry } from "../registry.js";
 
+/** SwiftBar 元数据 value 不支持转义双引号，含双引号的路径去引号后再用（极罕见，仅防解析逃逸） */
+function safeParam(s: string): string {
+  return s.replace(/"/g, "");
+}
+
 export function renderMenubar(entries: MergedEntry[], binPath: string): string {
   const bad = entries.filter((e) => e.state === "drift" || e.proc?.source === "orphan").length;
   const lines: string[] = [];
@@ -27,15 +32,15 @@ export function renderMenubar(entries: MergedEntry[], binPath: string): string {
     lines.push(`${mark}${e.port} ${projName} · ${label}${suffix}`);
     const stopLabel = e.proc && !isOrphan && e.state !== "drift" ? `停止服务…（${src} 正在使用）` : "停止服务";
     if (e.proc) {
-      lines.push(`-- ${stopLabel} | bash="${binPath}" param1=stop param2=${e.port} param3=--gui terminal=false refresh=true`);
+      lines.push(`-- ${stopLabel} | bash="${safeParam(binPath)}" param1=stop param2=${e.port} param3=--gui terminal=false refresh=true`);
       lines.push(`-- 复制 http://localhost:${e.port} | bash=/bin/bash param1=-c param2="echo -n 'http://localhost:${e.port}' | pbcopy" terminal=false`);
     }
     if (proj) {
-      lines.push(`-- 在 Finder 中打开项目目录 | bash=/usr/bin/open param1="${proj}" terminal=false`);
+      lines.push(`-- 在 Finder 中打开项目目录 | bash=/usr/bin/open param1="${safeParam(proj)}" terminal=false`);
     }
   }
   lines.push("---");
-  lines.push(`清理全部孤儿 (gc) | bash="${binPath}" param1=gc param2=--kill-orphans terminal=false refresh=true`);
+  lines.push(`清理全部孤儿 (gc) | bash="${safeParam(binPath)}" param1=gc param2=--kill-orphans terminal=false refresh=true`);
   lines.push("刷新 | refresh=true");
   return lines.join("\n") + "\n";
 }
