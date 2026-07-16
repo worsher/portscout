@@ -7,7 +7,7 @@
   "engines": { "node": ">=18.17" },
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test tests/scan.test.ts tests/registry.test.ts tests/merge.test.ts tests/stop.test.ts tests/menubar.test.ts",
+    "test": "tsx --test tests/scan.test.ts tests/registry.test.ts tests/merge.test.ts tests/stop.test.ts tests/menubar.test.ts tests/render.test.ts",
     "smoke": "pnpm build && tsx --test tests/smoke.test.ts"
   },
   "devDependencies": {
