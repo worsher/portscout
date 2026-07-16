@@ -61,7 +61,9 @@ type CommandFn = (flags: Flags) => Promise<number>;
 const COMMANDS: Record<string, () => Promise<{ default: CommandFn }>> = {
   list: () => import("./commands/list.js"),
   whois: () => import("./commands/whois.js"),
-  // 后续任务在此注册: claim, release, stop, gc, watch, menubar
+  claim: () => import("./commands/claim.js"),
+  release: () => import("./commands/release.js"),
+  // 后续任务在此注册: stop, gc, watch, menubar
 };
 
 async function main(): Promise<number> {
