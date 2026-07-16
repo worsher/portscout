@@ -34,7 +34,7 @@ const SOURCE_PATTERNS: Array<[RegExp, string]> = [
   [/cursor/i, "cursor"],
   [/antigrav/i, "antigravity"],
   [/code helper|vscode|electron/i, "vscode/electron"],
-  [/iterm|apple_terminal|terminal\.app|warp|kitty|alacritty|wezterm|tmux/i, "terminal"],
+  [/iterm|^terminal$|warp|kitty|alacritty|wezterm|tmux/i, "terminal"],
   [/docker/i, "docker"],
 ];
 
