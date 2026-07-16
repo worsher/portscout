@@ -45,6 +45,16 @@ test("claim 跳过实际被占用的端口", async () => {
   assert.equal(port, 3001);
 });
 
+test("claim 在 prefer 不可用时回落扫描 range 低端口段", async () => {
+  const r = await tmpRegistry();
+  const { port } = await r.claim({
+    name: "web", project: "/proj/a",
+    prefer: 3005, range: [3000, 3010],
+    portFree: async (p) => p < 3005, // 3005-3010 全被占用
+  });
+  assert.equal(port, 3000);
+});
+
 test("release 后再 claim 粘性复用 lastPort", async () => {
   const r = await tmpRegistry();
   await r.claim({ name: "web", project: "/proj/a", prefer: 3000, portFree: alwaysFree });
@@ -95,4 +105,13 @@ test("markReleasedByPort 把活跃记录转为 released", async () => {
   const entries = await r.load();
   assert.equal(entries[0].released, true);
   assert.equal(entries[0].lastPort, 3000);
+});
+
+test("claim 可夺取已死进程遗留的锁", async () => {
+  const r = await tmpRegistry();
+  const lockDir = path.join(r.dir, ".lock");
+  await fs.mkdir(lockDir, { recursive: true });
+  await fs.writeFile(path.join(lockDir, "pid"), "999999"); // 几乎必死的 pid
+  const { port } = await r.claim({ name: "web", project: "/p", prefer: 3000, portFree: async () => true });
+  assert.equal(port, 3000);
 });

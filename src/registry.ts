@@ -30,10 +30,16 @@ export class Registry {
   }
 
   async load(): Promise<RegistryEntry[]> {
+    let raw: string;
     try {
-      return JSON.parse(await fs.readFile(this.file, "utf8")) as RegistryEntry[];
+      raw = await fs.readFile(this.file, "utf8");
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw e;
+    }
+    try {
+      return JSON.parse(raw) as RegistryEntry[];
+    } catch {
       await fs.rename(this.file, this.file + ".bak").catch(() => {});
       process.stderr.write("portscout: 注册表损坏，已备份为 registry.json.bak 并重建\n");
       return [];
@@ -59,9 +65,21 @@ export class Registry {
         break;
       } catch {
         if (Date.now() - start > 2000) {
-          const holder = Number(await fs.readFile(pidFile, "utf8").catch(() => "0"));
+          const holderRaw = await fs.readFile(pidFile, "utf8").catch(() => null);
+          if (holderRaw === null) {
+            // pid 文件尚未写入：持有者可能正处于「mkdir 成功但还没来得及写 pid」的窗口期。
+            // 只有当 lockDir 本身足够老（大概率是崩溃进程的残留）才视为可回收，否则耐心等待。
+            const st = await fs.stat(lockDir).catch(() => null);
+            if (st && Date.now() - st.mtimeMs > 10_000) {
+              await fs.rm(lockDir, { recursive: true, force: true });
+            }
+            await new Promise((r) => setTimeout(r, 50));
+            continue;
+          }
+          const holder = Number(holderRaw);
           if (holder && isAlive(holder)) throw new LockTimeoutError();
           await fs.rm(lockDir, { recursive: true, force: true });
+          await new Promise((r) => setTimeout(r, 50));
           continue;
         }
         await new Promise((r) => setTimeout(r, 50));
@@ -97,7 +115,7 @@ export class Registry {
       const candidates: number[] = [];
       if (existing?.lastPort) candidates.push(existing.lastPort);
       if (opts.prefer) candidates.push(opts.prefer);
-      for (let p = opts.prefer ?? lo; p <= hi; p++) candidates.push(p);
+      for (let p = lo; p <= hi; p++) candidates.push(p);
 
       let chosen = -1;
       for (const p of candidates) {
