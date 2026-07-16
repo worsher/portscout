@@ -1,12 +1,18 @@
 {
   "name": "portscout",
   "version": "0.1.0",
-  "description": "本机端口服务侦察与调度，防多 agent 端口冲突",
+  "description": "本机端口服务侦察与调度，防多 agent 端口冲突 — port recon & guarded orchestration for multi-agent local dev",
   "type": "module",
   "bin": { "portscout": "dist/cli.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/worsher/portscout.git" },
+  "keywords": ["port", "port-management", "dev-server", "ai-agent", "claude-code", "cursor", "lsof", "macos", "swiftbar"],
+  "os": ["darwin"],
   "engines": { "node": ">=18.17" },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "pnpm build && pnpm test",
     "test": "tsx --test tests/scan.test.ts tests/registry.test.ts tests/merge.test.ts tests/stop.test.ts tests/menubar.test.ts tests/render.test.ts",
     "smoke": "pnpm build && tsx --test tests/smoke.test.ts"
   },
