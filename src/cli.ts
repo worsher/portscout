@@ -59,7 +59,9 @@ const HELP = `portscout — 本机端口服务侦察与调度
 
 type CommandFn = (flags: Flags) => Promise<number>;
 const COMMANDS: Record<string, () => Promise<{ default: CommandFn }>> = {
-  // 后续任务在此注册: list, whois, claim, release, stop, gc, watch, menubar
+  list: () => import("./commands/list.js"),
+  whois: () => import("./commands/whois.js"),
+  // 后续任务在此注册: claim, release, stop, gc, watch, menubar
 };
 
 async function main(): Promise<number> {

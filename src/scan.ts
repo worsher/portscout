@@ -1,4 +1,5 @@
-import type { ListenEntry, PsRow } from "./types.js";
+import type { ListenEntry, ProcessInfo, PsRow } from "./types.js";
+import { realExec, type Exec } from "./exec.js";
 
 export function parseLsofListeners(text: string): ListenEntry[] {
   const out: ListenEntry[] = [];
@@ -66,4 +67,46 @@ const NOISE = /^(language_server|Antigravity|Electron$|Cursor|Code Helper|Contro
 
 export function isNoise(procName: string): boolean {
   return NOISE.test(procName);
+}
+
+export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[]> {
+  const [lsofOut, psOut] = await Promise.all([
+    exec("lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-Fpcn"]),
+    exec("ps", ["-axo", "pid=,ppid=,comm="]),
+  ]);
+  const listens = parseLsofListeners(lsofOut);
+  const table = parsePsTable(psOut);
+
+  const byPid = new Map<number, Set<number>>();
+  for (const l of listens) {
+    if (!byPid.has(l.pid)) byPid.set(l.pid, new Set());
+    byPid.get(l.pid)!.add(l.port);
+  }
+
+  const infos = await Promise.all(
+    [...byPid.entries()].map(async ([pid, ports]): Promise<ProcessInfo> => {
+      const [cwdOut, cmdOut] = await Promise.all([
+        exec("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"]),
+        exec("ps", ["-o", "command=", "-p", String(pid)]),
+      ]);
+      const cwdLine = cwdOut.split("\n").find((l) => l.startsWith("n"));
+      const command = cmdOut.trim();
+      const comm = table.get(pid)?.comm ?? "?";
+      return {
+        pid,
+        ports: [...ports].sort((a, b) => a - b),
+        procName: comm.split("/").pop() ?? "?",
+        command,
+        cwd: cwdLine ? cwdLine.slice(1) : null,
+        inferredProject: inferProjectFromCommand(command),
+        source: traceSource(pid, table),
+      };
+    }),
+  );
+  return infos.sort((a, b) => (a.ports[0] ?? 0) - (b.ports[0] ?? 0));
+}
+
+export function resolveProjectDir(p: Omit<ProcessInfo, "cwd" | "inferredProject"> & { cwd: string | null; inferredProject: string | null }): string | null {
+  if (p.cwd && p.cwd !== "/" && !p.cwd.startsWith("/System")) return p.cwd;
+  return p.inferredProject ?? p.cwd;
 }
