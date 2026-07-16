@@ -65,7 +65,8 @@ const COMMANDS: Record<string, () => Promise<{ default: CommandFn }>> = {
   release: () => import("./commands/release.js"),
   stop: () => import("./commands/stop.js"),
   gc: () => import("./commands/gc.js"),
-  // 后续任务在此注册: watch, menubar
+  watch: () => import("./commands/watch.js"),
+  menubar: () => import("./commands/menubar.js"),
 };
 
 async function main(): Promise<number> {

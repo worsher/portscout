@@ -41,3 +41,35 @@ export function formatTable(header: string[], rows: string[][]): string {
       .join("  ");
   return [fmt(header), ...rows.map(fmt)].join("\n");
 }
+
+import type { MergedEntry } from "./types.js";
+import { resolveProjectDir } from "./scan.js";
+
+const WATCH_STATE: Record<string, string> = {
+  active: `${C.green}●${C.reset}`,
+  reserved: "◐",
+  unregistered: "○",
+  drift: `${C.yellow}⚠${C.reset}`,
+};
+
+export function formatWatchFrame(cur: MergedEntry[], prevPorts: Set<number>): string {
+  const rows = cur.map((e) => {
+    const isNew = !prevPorts.has(e.port);
+    const proj = e.proc ? resolveProjectDir(e.proc) : e.reg?.project;
+    const color = isNew ? C.green : e.proc?.source === "orphan" || e.state === "drift" ? C.yellow : "";
+    const end = color ? C.reset : "";
+    return [
+      `${color}${e.port}${end}`,
+      WATCH_STATE[e.state],
+      e.proc?.source ?? "-",
+      e.reg?.name ?? "-",
+      `${color}${proj ?? "?"}${end}`,
+    ];
+  });
+  const now = new Date().toLocaleTimeString("zh-CN");
+  return (
+    `portscout watch  ${C.dim}${now}  按 q 退出${C.reset}\n\n` +
+    formatTable(["PORT", "状态", "来源", "预留名", "项目目录"], rows) +
+    "\n"
+  );
+}
