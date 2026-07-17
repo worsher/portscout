@@ -1,5 +1,7 @@
 # portscout
 
+[![npm](https://img.shields.io/npm/v/@worsher/portscout)](https://www.npmjs.com/package/@worsher/portscout) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 本机端口服务的侦察与调度工具，为多 AI agent 并行开发场景设计：回答「哪个端口被谁占、属于哪个项目」，提供带护栏的端口预留与服务停止能力，防止 agent 之间端口冲突与互相误杀。
 
 ## 安装
