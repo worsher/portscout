@@ -39,17 +39,17 @@ const SOURCE_PATTERNS: Array<[RegExp, string]> = [
   [/docker/i, "docker"],
 ];
 
-/** launchctl list 输出（PID\tStatus\tLabel）→ 受 launchd 管理的运行中服务 pid 集合 */
-export function parseLaunchctlList(text: string): Set<number> {
-  const pids = new Set<number>();
+/** launchctl list 输出（PID\tStatus\tLabel）→ 受 launchd 管理的运行中服务 pid→label 映射 */
+export function parseLaunchctlList(text: string): Map<number, string> {
+  const services = new Map<number, string>();
   for (const line of text.split("\n")) {
-    const m = /^\s*(\d+)[\t ]/.exec(line);
-    if (m) pids.add(Number(m[1]));
+    const m = /^\s*(\d+)[\t ]+\S+[\t ]+(\S+)/.exec(line);
+    if (m) services.set(Number(m[1]), m[2]);
   }
-  return pids;
+  return services;
 }
 
-export function traceSource(pid: number, table: Map<number, PsRow>, launchdPids?: Set<number>): string {
+export function traceSource(pid: number, table: Map<number, PsRow>, launchdServices?: Map<number, string>): string {
   let cur = table.get(pid);
   if (!cur) return "?";
   for (let depth = 0; cur && depth < 20; depth++) {
@@ -59,8 +59,9 @@ export function traceSource(pid: number, table: Map<number, PsRow>, launchdPids?
     }
     if (cur.ppid === 1) {
       // ppid=1 有三种可能，仅最后一种是真孤儿：
-      // 1) launchd 受管服务（LaunchAgent/登录项，如 OpenClaw gateway）——launchctl list 可查
-      if (launchdPids?.has(cur.pid)) return "launchd";
+      // 1) launchd 受管服务（LaunchAgent/登录项，如 OpenClaw gateway）——launchctl list 可查，带出注册 label
+      const label = launchdServices?.get(cur.pid);
+      if (label) return `launchd:${label}`;
       // 2) 双 fork 自愿 daemon 化的 GUI 应用后台进程——仅认 /Applications 安装位置，
       //    避免误伤 framework 内嵌的 .app（如 homebrew Python 的 Python.app 解释器壳）
       if (/^\/(?:Applications|Users\/[^/]+\/Applications)\/.*\.app\//.test(cur.comm)) return "app";
@@ -96,7 +97,7 @@ export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[
   ]);
   const listens = parseLsofListeners(lsofOut);
   const table = parsePsTable(psOut);
-  const launchdPids = parseLaunchctlList(launchctlOut);
+  const launchdServices = parseLaunchctlList(launchctlOut);
 
   const byPid = new Map<number, Set<number>>();
   for (const l of listens) {
@@ -120,7 +121,7 @@ export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[
         command,
         cwd: cwdLine ? cwdLine.slice(1) : null,
         inferredProject: inferProjectFromCommand(command),
-        source: traceSource(pid, table, launchdPids),
+        source: traceSource(pid, table, launchdServices),
       };
     }),
   );
