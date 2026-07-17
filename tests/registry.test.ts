@@ -6,7 +6,7 @@ import path from "node:path";
 import { Registry } from "../src/registry.js";
 
 async function tmpRegistry(): Promise<Registry> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "portscout-test-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "portmarshal-test-"));
   return new Registry(dir);
 }
 const alwaysFree = async () => true;
@@ -29,6 +29,33 @@ test("claim 幂等：同 (project,name) 重复 claim 返回原端口", async () 
   const second = await r.claim({ name: "web", project: "/proj/a", prefer: 4000, portFree: alwaysFree });
   assert.equal(second.port, 3000);
   assert.equal(second.reused, true);
+});
+
+test("claim 幂等：端口正在被本项目监听时继续复用", async () => {
+  const r = await tmpRegistry();
+  await r.claim({ name: "web", project: "/proj/a", prefer: 3000, portFree: alwaysFree });
+  const second = await r.claim({
+    name: "web",
+    project: "/proj/a",
+    portFree: async () => false,
+    portOwnedByProject: async () => true,
+  });
+  assert.equal(second.port, 3000);
+  assert.equal(second.reused, true);
+});
+
+test("claim 发现旧预留已被其他进程占用时重新分配", async () => {
+  const r = await tmpRegistry();
+  await r.claim({ name: "web", project: "/proj/a", prefer: 3000, portFree: alwaysFree });
+  const second = await r.claim({
+    name: "web",
+    project: "/proj/a",
+    portFree: async (port) => port !== 3000,
+    portOwnedByProject: async () => false,
+  });
+  assert.equal(second.port, 3001);
+  assert.equal(second.reused, false);
+  assert.equal(second.previousPort, 3000);
 });
 
 test("claim 冲突顺延：prefer 被其他项目注册时 +1", async () => {
@@ -96,6 +123,21 @@ test("注册表损坏时备份重建", async () => {
   assert.deepEqual(entries, []);
   const bak = await fs.readFile(path.join(r.dir, "registry.json.bak"), "utf8");
   assert.equal(bak, "{broken");
+});
+
+test("首次读取时从 PortScout 旧注册表复制迁移", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "portmarshal-migration-"));
+  const oldDir = path.join(root, ".portscout");
+  const newDir = path.join(root, ".portmarshal");
+  const oldFile = path.join(oldDir, "registry.json");
+  const entry = [{ name: "web", project: "/proj/a", port: 3000, claimedAt: new Date().toISOString() }];
+  await fs.mkdir(oldDir, { recursive: true });
+  await fs.writeFile(oldFile, JSON.stringify(entry));
+
+  const registry = new Registry(newDir, oldFile);
+  assert.deepEqual(await registry.load(), entry);
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(newDir, "registry.json"), "utf8")), entry);
+  assert.equal(await fs.readFile(oldFile, "utf8"), JSON.stringify(entry));
 });
 
 test("markReleasedByPort 把活跃记录转为 released", async () => {

@@ -10,8 +10,8 @@ function proc(over: Partial<ProcessInfo>): ProcessInfo {
   };
 }
 
-test("classifyTarget: 孤儿 → orphan", () => {
-  assert.equal(classifyTarget(proc({ source: "orphan" }), "/p/me", []), "orphan");
+test("classifyTarget: 脱离会话 → detached", () => {
+  assert.equal(classifyTarget(proc({ source: "detached" }), "/p/me", []), "detached");
 });
 
 test("classifyTarget: cwd 同项目 → own", () => {

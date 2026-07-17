@@ -25,10 +25,10 @@ test("parsePsTable 建立 pid→行 映射", () => {
   assert.equal(table.get(2755)?.comm.endsWith("Python"), true);
 });
 
-test("traceSource 识别 cursor / orphan / 未知", () => {
+test("traceSource 识别 cursor / detached / 未知", () => {
   const table = parsePsTable(PS_TABLE);
   assert.equal(traceSource(8660, table), "cursor");   // node→zsh→Cursor
-  assert.equal(traceSource(2755, table), "orphan");   // ppid=1 且无匹配
+  assert.equal(traceSource(2755, table), "detached");   // ppid=1 且无匹配
   assert.equal(traceSource(99999, table), "?");       // 不在表中
 });
 
@@ -90,7 +90,7 @@ test("scanListeners 组装 ProcessInfo：去重端口、归属 cwd、来源", as
   const py = byPid.get(2755)!;
   assert.deepEqual(py.ports, [8901]);
   assert.equal(py.cwd, "/private/tmp/site-platform/scratchpad");
-  assert.equal(py.source, "orphan");
+  assert.equal(py.source, "detached");
   const umi = byPid.get(8660)!;
   assert.deepEqual(umi.ports, [8000]); // IPv4+IPv6 去重
   assert.equal(umi.source, "cursor");
@@ -116,19 +116,19 @@ test("parseLaunchctlList 提取受管服务 pid→label 映射", () => {
   assert.equal(services.size, 2); // "-" 行不计
 });
 
-test("traceSource 三层判定：launchd 受管 / .app 兜底 / 真孤儿", () => {
+test("traceSource 三层判定：launchd 受管 / .app 兜底 / detached", () => {
   const table = parsePsTable(PS_TABLE);
   const launchd = new Map([[12000, "launchd:com.openclaw.gateway"]]);
   // launchd 受管服务（OpenClaw gateway 场景）——带出注册 label
   assert.equal(traceSource(12000, table, launchd), "launchd:com.openclaw.gateway");
   // 其子进程沿链归属到受管链根
   assert.equal(traceSource(14000, table, launchd), "launchd:com.openclaw.gateway");
-  // 不受管但链根在 .app bundle 内（双 fork 自愿孤儿）
+  // 不受管但链根在 .app bundle 内（双 fork 自愿 daemon 化）
   assert.equal(traceSource(13000, table, launchd), "app");
-  // 真孤儿：不受管、非 .app（原有 2755 Python）
-  assert.equal(traceSource(2755, table, launchd), "orphan");
+  // 脱离会话：不受管、非 .app（原有 2755 Python）
+  assert.equal(traceSource(2755, table, launchd), "detached");
   // 不传 launchd 集合时向后兼容——但 .app 兜底仍生效
-  assert.equal(traceSource(2755, table), "orphan");
+  assert.equal(traceSource(2755, table), "detached");
 });
 
 test("parsePsCommands 建立 pid→完整命令行 映射", () => {
@@ -169,4 +169,11 @@ test("traceSource 在 Linux 下用 systemd 标签替代孤儿判定", () => {
   const managed = new Map([[12000, "systemd:openclaw-gateway.service"]]);
   assert.equal(traceSource(12000, table, managed), "systemd:openclaw-gateway.service");
   assert.equal(traceSource(14000, table, managed), "systemd:openclaw-gateway.service"); // 子进程沿链归属
+});
+
+test("traceSource 使用生产态 cgroup 映射识别 systemd 子进程", () => {
+  const table = parsePsTable(PS_TABLE);
+  // linuxServiceLabels() 按监听 pid 建图；监听者是服务子进程时，标签不在 ppid=1 的链根上。
+  const managed = new Map([[14000, "systemd:openclaw-gateway.service"]]);
+  assert.equal(traceSource(14000, table, managed), "systemd:openclaw-gateway.service");
 });

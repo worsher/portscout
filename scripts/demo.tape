@@ -9,26 +9,26 @@ Set TypingSpeed 40ms
 
 Type "# Which port belongs to which project, started by which agent?"
 Enter
-Type "portscout list"
+Type "portmarshal list --project $DEMO_PROJECT"
 Enter
 Sleep 2.5s
 
-Type "portscout whois 18923"
+Type "portmarshal whois 18923"
 Enter
 Sleep 3s
 
 Type "# Try to stop another agent's live service — the guard steps in"
 Enter
-Type "portscout stop 18923"
+Type "portmarshal stop 18923"
 Enter
 Sleep 3.5s
 
-Type "portscout stop 18923 --force"
+Type "portmarshal stop 18923 --force"
 Enter
 Sleep 2.5s
 
 Type "# Reserve a port for your own dev server (idempotent + sticky)"
 Enter
-Type "PORT=$(portscout claim web --prefer 3000); echo $PORT"
+Type "PORT=$(portmarshal claim web --prefer 3000); echo $PORT"
 Enter
 Sleep 2.5s

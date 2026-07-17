@@ -56,7 +56,7 @@ export function formatWatchFrame(cur: MergedEntry[], prevPorts: Set<number>): st
   const rows = cur.map((e) => {
     const isNew = !prevPorts.has(e.port);
     const proj = e.proc ? resolveProjectDir(e.proc) : e.reg?.project;
-    const color = isNew ? C.green : e.proc?.source === "orphan" || e.state === "drift" ? C.yellow : "";
+    const color = isNew ? C.green : e.proc?.source === "detached" || e.state === "drift" ? C.yellow : "";
     const end = color ? C.reset : "";
     return [
       `${color}${e.port}${end}`,
@@ -66,10 +66,10 @@ export function formatWatchFrame(cur: MergedEntry[], prevPorts: Set<number>): st
       `${color}${proj ?? "?"}${end}`,
     ];
   });
-  const now = new Date().toLocaleTimeString("zh-CN");
+  const now = new Date().toLocaleTimeString("en-US", { hour12: false });
   return (
-    `portscout watch  ${C.dim}${now}  按 q 退出${C.reset}\n\n` +
-    formatTable(["PORT", "状态", "来源", "预留名", "项目目录"], rows) +
+    `portmarshal watch  ${C.dim}${now}  press q to quit${C.reset}\n\n` +
+    formatTable(["PORT", "STATE", "SOURCE", "CLAIM", "PROJECT"], rows) +
     "\n"
   );
 }

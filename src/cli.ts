@@ -8,7 +8,7 @@ export interface Flags {
   force: boolean;
   gui: boolean;
   install: boolean;
-  killOrphans: boolean;
+  killDetached: boolean;
   project?: string;
   prefer?: number;
   range?: [number, number];
@@ -18,7 +18,7 @@ export interface Flags {
 export function parseFlags(args: string[]): Flags {
   const f: Flags = {
     json: false, all: false, force: false, gui: false,
-    install: false, killOrphans: false, positional: [],
+    install: false, killDetached: false, positional: [],
   };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -28,35 +28,48 @@ export function parseFlags(args: string[]): Flags {
       case "--force": f.force = true; break;
       case "--gui": f.gui = true; break;
       case "--install": f.install = true; break;
-      case "--kill-orphans": f.killOrphans = true; break;
+      case "--kill-detached": f.killDetached = true; break;
+      case "--kill-orphans": f.killDetached = true; break; // v0.2 compatibility alias
       case "--project": f.project = args[++i]; break;
-      case "--prefer": f.prefer = Number(args[++i]); break;
+      case "--prefer": {
+        const port = Number(args[++i]);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          throw new Error("--prefer must be a TCP port between 1 and 65535");
+        }
+        f.prefer = port;
+        break;
+      }
       case "--range": {
         const m = /^(\d+)-(\d+)$/.exec(args[++i] ?? "");
-        if (!m) throw new Error("--range 格式应为 A-B，如 3000-3999");
-        f.range = [Number(m[1]), Number(m[2])];
+        if (!m) throw new Error("--range must use A-B format, for example 3000-3999");
+        const lo = Number(m[1]);
+        const hi = Number(m[2]);
+        if (lo < 1 || hi > 65535 || lo > hi) {
+          throw new Error("--range must be an ascending TCP port range within 1-65535");
+        }
+        f.range = [lo, hi];
         break;
       }
       default:
-        if (a.startsWith("--")) throw new Error(`未知选项: ${a}`);
+        if (a.startsWith("--")) throw new Error(`Unknown option: ${a}`);
         f.positional.push(a);
     }
   }
   return f;
 }
 
-const HELP = `portscout — 本机端口服务侦察与调度
+const HELP = `portmarshal — agent-aware local port ownership and guarded orchestration
 
-用法:
-  portscout list [--json] [--all] [--project <dir|.>]
-  portscout whois <port> [--json]
-  portscout claim <name> [--prefer N] [--range A-B] [--json]
-  portscout release <name>
-  portscout stop <port|name> [--force|--gui] [--json]
-  portscout gc [--kill-orphans]
-  portscout watch
-  portscout menubar [--install]
-  portscout -v | --version
+Usage:
+  portmarshal list [--json] [--all] [--project <dir|.>]
+  portmarshal whois <port> [--json]
+  portmarshal claim <name> [--prefer N] [--range A-B] [--json]
+  portmarshal release <name>
+  portmarshal stop <port|name> [--force|--gui] [--json]
+  portmarshal gc [--kill-detached]
+  portmarshal watch
+  portmarshal menubar [--install]
+  portmarshal -v | --version
 `;
 
 type CommandFn = (flags: Flags) => Promise<number>;
@@ -86,14 +99,14 @@ async function main(): Promise<number> {
   }
   const loader = COMMANDS[cmd];
   if (!loader) {
-    process.stderr.write(`未知命令: ${cmd}\n\n${HELP}`);
+    process.stderr.write(`Unknown command: ${cmd}\n\n${HELP}`);
     return EXIT.ERR;
   }
   try {
     const mod = await loader();
     return await mod.default(parseFlags(rest));
   } catch (e) {
-    process.stderr.write(`portscout: ${(e as Error).message}\n`);
+    process.stderr.write(`portmarshal: ${(e as Error).message}\n`);
     return EXIT.ERR;
   }
 }

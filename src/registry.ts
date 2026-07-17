@@ -5,7 +5,7 @@ import path from "node:path";
 import type { RegistryEntry } from "./types.js";
 
 export class LockTimeoutError extends Error {
-  constructor() { super("注册表锁竞争超时，可稍后重试"); }
+  constructor() { super("Registry lock timed out; retry the command"); }
 }
 
 export async function isPortFree(port: number): Promise<boolean> {
@@ -23,13 +23,42 @@ function isAlive(pid: number): boolean {
 export class Registry {
   readonly dir: string;
   readonly file: string;
+  readonly legacyFile?: string;
 
-  constructor(dir = path.join(os.homedir(), ".portscout")) {
-    this.dir = dir;
-    this.file = path.join(dir, "registry.json");
+  constructor(dir?: string, legacyFile?: string) {
+    const home = os.homedir();
+    const configuredDir = process.env.PORTMARSHAL_STATE_DIR;
+    this.dir = dir ?? configuredDir ?? path.join(home, ".portmarshal");
+    this.file = path.join(this.dir, "registry.json");
+    this.legacyFile = legacyFile ?? (dir === undefined && configuredDir === undefined
+      ? path.join(home, ".portscout", "registry.json")
+      : undefined);
+  }
+
+  private async migrateLegacyRegistry(): Promise<void> {
+    if (!this.legacyFile) return;
+    try {
+      await fs.access(this.file);
+      return;
+    } catch {
+      // Continue only when the new registry does not exist.
+    }
+    let raw: string;
+    try {
+      raw = await fs.readFile(this.legacyFile, "utf8");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw e;
+    }
+    await fs.mkdir(this.dir, { recursive: true });
+    const tmp = `${this.file}.${process.pid}.migration.tmp`;
+    await fs.writeFile(tmp, raw);
+    await fs.rename(tmp, this.file);
+    process.stderr.write(`portmarshal: migrated registry from ${this.legacyFile}\n`);
   }
 
   async load(): Promise<RegistryEntry[]> {
+    await this.migrateLegacyRegistry();
     let raw: string;
     try {
       raw = await fs.readFile(this.file, "utf8");
@@ -41,7 +70,7 @@ export class Registry {
       return JSON.parse(raw) as RegistryEntry[];
     } catch {
       await fs.rename(this.file, this.file + ".bak").catch(() => {});
-      process.stderr.write("portscout: 注册表损坏，已备份为 registry.json.bak 并重建\n");
+      process.stderr.write("portmarshal: registry was invalid; backed it up as registry.json.bak and started clean\n");
       return [];
     }
   }
@@ -99,7 +128,8 @@ export class Registry {
     range?: [number, number];
     claimedBy?: string;
     portFree?: (p: number) => Promise<boolean>;
-  }): Promise<{ port: number; reused: boolean }> {
+    portOwnedByProject?: (p: number) => Promise<boolean>;
+  }): Promise<{ port: number; reused: boolean; previousPort?: number }> {
     const free = opts.portFree ?? isPortFree;
     return this.withLock(async () => {
       const entries = await this.load();
@@ -107,7 +137,13 @@ export class Registry {
       const existing = entries.find(isKey);
 
       if (existing && !existing.released) {
-        return { port: existing.port, reused: true };
+        // 活跃记录也必须重新核验：端口可能在 30 分钟回收窗口内被外部进程抢占。
+        // 若端口仍空闲，或扫描确认监听者仍属于本项目，才保持幂等复用。
+        const stillFree = await free(existing.port);
+        const stillOwned = !stillFree && opts.portOwnedByProject
+          ? await opts.portOwnedByProject(existing.port)
+          : false;
+        if (stillFree || stillOwned) return { port: existing.port, reused: true };
       }
 
       const taken = new Set(entries.filter((e) => !e.released).map((e) => e.port));
@@ -123,7 +159,7 @@ export class Registry {
         if (taken.has(p)) continue;
         if (await free(p)) { chosen = p; break; }
       }
-      if (chosen < 0) throw new Error(`范围 ${lo}-${hi} 内无可用端口`);
+      if (chosen < 0) throw new Error(`No free port found in range ${lo}-${hi}`);
 
       const entry: RegistryEntry = {
         name: opts.name,
@@ -133,7 +169,11 @@ export class Registry {
         claimedBy: opts.claimedBy,
       };
       await this.save([...entries.filter((e) => !isKey(e)), entry]);
-      return { port: chosen, reused: false };
+      return {
+        port: chosen,
+        reused: false,
+        previousPort: existing && !existing.released ? existing.port : undefined,
+      };
     });
   }
 
