@@ -43,7 +43,7 @@ export function formatTable(header: string[], rows: string[][]): string {
 }
 
 import type { MergedEntry } from "./types.js";
-import { resolveProjectDir } from "./scan.js";
+import { displaySource, resolveProjectDir } from "./scan.js";
 
 const WATCH_STATE: Record<string, string> = {
   active: `${C.green}●${C.reset}`,
@@ -61,7 +61,7 @@ export function formatWatchFrame(cur: MergedEntry[], prevPorts: Set<number>): st
     return [
       `${color}${e.port}${end}`,
       WATCH_STATE[e.state],
-      e.proc?.source ?? "-",
+      e.proc ? displaySource(e.proc) : "-",
       e.reg?.name ?? "-",
       `${color}${proj ?? "?"}${end}`,
     ];

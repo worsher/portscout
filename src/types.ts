@@ -10,6 +10,15 @@ export interface PsRow {
   comm: string;
 }
 
+export interface DockerInfo {
+  containerId: string;
+  containerName: string;
+  composeProject: string | null;
+  composeService: string | null;
+  /** 宿主机上的 Compose 工作目录或 bind mount 目录 */
+  projectDir: string | null;
+}
+
 export interface ProcessInfo {
   pid: number;
   ports: number[];
@@ -18,6 +27,8 @@ export interface ProcessInfo {
   cwd: string | null;
   /** 从命令行参数推断的项目路径（cwd 失真时的兜底） */
   inferredProject: string | null;
+  /** Docker 端口反查到的容器和宿主机项目元数据 */
+  docker?: DockerInfo;
   source: string; // "claude-code" | "cursor" | "antigravity" | "vscode/electron" | "terminal" | "docker" | "detached" | "?"
 }
 

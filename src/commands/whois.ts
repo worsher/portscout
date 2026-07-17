@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Flags } from "../cli.js";
 import { EXIT } from "../types.js";
-import { scanListeners, resolveProjectDir } from "../scan.js";
+import { scanListeners, resolveProjectDir, displaySource } from "../scan.js";
 
 /** 受管服务按 label 探测服务定义文件的常规位置（macOS plist / Linux systemd unit） */
 async function findServiceDefinition(source: string): Promise<{ label: string; file: string | null } | null> {
@@ -59,10 +59,15 @@ export default async function whois(flags: Flags): Promise<number> {
   const lines = [
     `Port:     ${port}`,
     `PID:      ${hit.pid}`,
-    `Source:   ${hit.source}`,
+    `Source:   ${displaySource(hit)}`,
     `Project:  ${resolveProjectDir(hit) ?? "?"}`,
     `Command:  ${hit.command}`,
   ];
+  if (hit.docker) {
+    lines.push(`Container: ${hit.docker.containerName} (${hit.docker.containerId.slice(0, 12)})`);
+    if (hit.docker.composeProject) lines.push(`Compose:  ${hit.docker.composeProject}`);
+    if (hit.docker.composeService) lines.push(`Service:  ${hit.docker.composeService}`);
+  }
   const svc = await findServiceDefinition(hit.source);
   if (svc) {
     lines.push(`Service:  ${svc.label}`);

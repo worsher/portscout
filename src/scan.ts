@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
-import type { ListenEntry, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
+import path from "node:path";
+import type { DockerInfo, ListenEntry, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
 import { realExec, type Exec } from "./exec.js";
 
 export function parseLsofListeners(text: string): ListenEntry[] {
@@ -164,6 +165,143 @@ export function parseLsofCwds(text: string): Map<number, string> {
   return map;
 }
 
+interface DockerInspectContainer {
+  Id?: unknown;
+  Name?: unknown;
+  Config?: {
+    Labels?: unknown;
+  };
+  HostConfig?: {
+    PortBindings?: unknown;
+  };
+  NetworkSettings?: {
+    Ports?: unknown;
+  };
+  Mounts?: unknown;
+}
+
+export interface DockerPortOwner extends DockerInfo {
+  hostPorts: number[];
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (typeof val === "string") out[key] = val;
+  }
+  return out;
+}
+
+/** Docker Desktop 的 Engine VM 路径转回 macOS 宿主机路径。 */
+function dockerHostPath(value: string): string {
+  if (value.startsWith("/host_mnt/")) return value.slice("/host_mnt".length);
+  return value;
+}
+
+function absolutePath(value: string | undefined): string | null {
+  if (!value) return null;
+  const hostPath = dockerHostPath(value.trim());
+  return path.isAbsolute(hostPath) ? path.normalize(hostPath) : null;
+}
+
+function commonPath(paths: string[]): string | null {
+  if (!paths.length) return null;
+  const normalized = paths.map((p) => path.normalize(p));
+  if (normalized.length === 1) return normalized[0];
+  const parts = normalized.map((p) => p.split(path.sep).filter(Boolean));
+  const common: string[] = [];
+  for (let i = 0; i < Math.min(...parts.map((p) => p.length)); i++) {
+    const segment = parts[0][i];
+    if (!parts.every((p) => p[i] === segment)) break;
+    common.push(segment);
+  }
+  return common.length ? path.sep + common.join(path.sep) : path.parse(normalized[0]).root;
+}
+
+function dockerProjectDir(container: DockerInspectContainer, labels: Record<string, string>): string | null {
+  // Compose 自己记录的调用目录最可靠，且不受容器内 WorkingDir 影响。
+  const composeDir = absolutePath(labels["com.docker.compose.project.working_dir"]);
+  if (composeDir) return composeDir;
+
+  const devcontainerDir = absolutePath(labels["devcontainer.local_folder"]);
+  if (devcontainerDir) return devcontainerDir;
+
+  const configFile = labels["com.docker.compose.project.config_files"]
+    ?.split(",")
+    .map((p) => absolutePath(p))
+    .find((p): p is string => Boolean(p));
+  if (configFile) return path.dirname(configFile);
+
+  if (!Array.isArray(container.Mounts)) return null;
+  const bindSources = container.Mounts.flatMap((mount) => {
+    if (!mount || typeof mount !== "object") return [];
+    const m = mount as { Type?: unknown; Source?: unknown };
+    if (m.Type !== "bind" || typeof m.Source !== "string") return [];
+    const source = absolutePath(m.Source);
+    return source ? [source] : [];
+  });
+  return commonPath(bindSources);
+}
+
+function dockerHostPorts(value: unknown): number[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const ports = new Set<number>();
+  for (const bindings of Object.values(value)) {
+    if (!Array.isArray(bindings)) continue;
+    for (const binding of bindings) {
+      if (!binding || typeof binding !== "object") continue;
+      const hostPort = Number((binding as { HostPort?: unknown }).HostPort);
+      if (Number.isInteger(hostPort) && hostPort > 0 && hostPort <= 65535) ports.add(hostPort);
+    }
+  }
+  return [...ports].sort((a, b) => a - b);
+}
+
+/** docker inspect JSON → 每个运行容器的宿主机端口与项目目录。 */
+export function parseDockerInspect(text: string): DockerPortOwner[] {
+  let containers: unknown;
+  try {
+    containers = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(containers)) return [];
+
+  const owners: DockerPortOwner[] = [];
+  for (const raw of containers) {
+    if (!raw || typeof raw !== "object") continue;
+    const container = raw as DockerInspectContainer;
+    const containerId = typeof container.Id === "string" ? container.Id : "";
+    if (!containerId) continue;
+    const labels = stringRecord(container.Config?.Labels);
+    const networkPorts = dockerHostPorts(container.NetworkSettings?.Ports);
+    const hostPorts = networkPorts.length
+      ? networkPorts
+      : dockerHostPorts(container.HostConfig?.PortBindings);
+    if (!hostPorts.length) continue;
+    const rawName = typeof container.Name === "string" ? container.Name : containerId.slice(0, 12);
+    owners.push({
+      containerId,
+      containerName: rawName.replace(/^\//, ""),
+      composeProject: labels["com.docker.compose.project"] ?? null,
+      composeService: labels["com.docker.compose.service"] ?? null,
+      projectDir: dockerProjectDir(container, labels),
+      hostPorts,
+    });
+  }
+  return owners;
+}
+
+/** 仅在扫描到 Docker 监听时查询；两次固定调用，不随容器数增加。 */
+export async function dockerPortOwners(exec: Exec = realExec): Promise<DockerPortOwner[]> {
+  const ids = (await exec("docker", ["ps", "-q", "--no-trunc"]))
+    .split(/\s+/)
+    .filter((id) => /^[0-9a-f]{12,64}$/i.test(id));
+  if (!ids.length) return [];
+  return parseDockerInspect(await exec("docker", ["inspect", ...ids]));
+}
+
 /** cwd 失真兜底：从命令行第一个含 node_modules 或以 / 开头的脚本参数推断项目根 */
 export function inferProjectFromCommand(command: string): string | null {
   for (const tok of command.split(/\s+/)) {
@@ -213,7 +351,7 @@ export async function scanListeners(exec: Exec = realExec, platform: NodeJS.Plat
       ? parseLsofCwds(await exec("lsof", ["-a", "-p", pids.join(","), "-d", "cwd", "-Fn"]))
       : new Map<number, string>();
 
-  const infos = pids.map((pid): ProcessInfo => {
+  const baseInfos = pids.map((pid): ProcessInfo => {
     const ports = byPid.get(pid)!;
     const command = commands.get(pid) ?? "";
     const comm = table.get(pid)?.comm ?? "?";
@@ -227,12 +365,52 @@ export async function scanListeners(exec: Exec = realExec, platform: NodeJS.Plat
       source: traceSource(pid, table, managedServices),
     };
   });
+  const dockerPorts = baseInfos.some((info) => info.source === "docker")
+    ? await dockerPortOwners(exec)
+    : [];
+  const ownersByPort = new Map<number, DockerPortOwner>();
+  for (const owner of dockerPorts) {
+    for (const port of owner.hostPorts) ownersByPort.set(port, owner);
+  }
+
+  const infos = baseInfos.flatMap((info): ProcessInfo[] => {
+    if (info.source !== "docker" || !ownersByPort.size) return [info];
+    const grouped = new Map<DockerPortOwner | null, number[]>();
+    for (const port of info.ports) {
+      const owner = ownersByPort.get(port) ?? null;
+      const ports = grouped.get(owner) ?? [];
+      ports.push(port);
+      grouped.set(owner, ports);
+    }
+    return [...grouped].map(([owner, ports]) => owner
+      ? {
+          ...info,
+          ports,
+          docker: {
+            containerId: owner.containerId,
+            containerName: owner.containerName,
+            composeProject: owner.composeProject,
+            composeService: owner.composeService,
+            projectDir: owner.projectDir,
+          },
+        }
+      : { ...info, ports });
+  });
   return infos.sort((a, b) => (a.ports[0] ?? 0) - (b.ports[0] ?? 0));
 }
 
 export function resolveProjectDir(p: Omit<ProcessInfo, "cwd" | "inferredProject"> & { cwd: string | null; inferredProject: string | null }): string | null {
+  if (p.docker?.projectDir) return p.docker.projectDir;
   if (p.cwd && p.cwd !== "/" && !p.cwd.startsWith("/System")) return p.cwd;
   return p.inferredProject ?? p.cwd;
+}
+
+export function displaySource(p: ProcessInfo): string {
+  if (!p.docker) return p.source;
+  const owner = p.docker.composeProject && p.docker.composeService
+    ? `${p.docker.composeProject}/${p.docker.composeService}`
+    : p.docker.containerName;
+  return `docker:${owner}`;
 }
 
 export function classifyTarget(

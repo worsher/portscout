@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 — 2026-07-17
+
+- Attribute published Docker ports to the actual container, Compose service, and host project directory instead of the shared Docker Desktop backend directory
+- Split ports sharing a Docker backend PID by container, with Compose, Dev Container, and bind-mount directory fallbacks
+- Make guarded `stop` use `docker stop` for attributed containers rather than signaling the shared Docker backend process
+
 ## 0.3.2 — 2026-07-17
 
 - Migrate npm releases to GitHub OIDC Trusted Publishing with automatic provenance

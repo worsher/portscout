@@ -74,3 +74,39 @@ export const CGROUP_USER_SERVICE = `0::/user.slice/user-1000.slice/user@1000.ser
 `;
 export const CGROUP_SESSION_SCOPE = `0::/user.slice/user-1000.slice/session-4.scope
 `;
+
+/** docker inspect 的精简样本：Compose 标签优先，普通 docker run 回退到 bind mount。 */
+export const DOCKER_INSPECT = JSON.stringify([
+  {
+    Id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    Name: "/shop-web",
+    Config: {
+      Labels: {
+        "com.docker.compose.project": "shop",
+        "com.docker.compose.service": "web",
+        "com.docker.compose.project.working_dir": "/Users/w/code/shop/docker",
+      },
+    },
+    NetworkSettings: {
+      Ports: {
+        "3000/tcp": [{ HostIp: "0.0.0.0", HostPort: "3000" }],
+        "3001/tcp": [
+          { HostIp: "0.0.0.0", HostPort: "8080" },
+          { HostIp: "::", HostPort: "8080" },
+        ],
+      },
+    },
+    Mounts: [],
+  },
+  {
+    Id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    Name: "/api-dev",
+    Config: { Labels: {} },
+    NetworkSettings: {
+      Ports: { "9000/tcp": [{ HostIp: "127.0.0.1", HostPort: "9090" }] },
+    },
+    Mounts: [
+      { Type: "bind", Source: "/host_mnt/Users/w/code/api", Destination: "/app" },
+    ],
+  },
+]);

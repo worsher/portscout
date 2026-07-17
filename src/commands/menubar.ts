@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { Flags } from "../cli.js";
 import { EXIT, type MergedEntry } from "../types.js";
-import { scanListeners, isNoise, resolveProjectDir } from "../scan.js";
+import { scanListeners, isNoise, resolveProjectDir, displaySource } from "../scan.js";
 import { mergeScanRegistry } from "../merge.js";
 import { Registry } from "../registry.js";
 
@@ -24,7 +24,7 @@ export function renderMenubar(entries: MergedEntry[], binPath: string): string {
   for (const e of entries) {
     const proj = e.proc ? resolveProjectDir(e.proc) : e.reg?.project;
     const projName = proj ? path.basename(proj) : "?";
-    const src = e.proc?.source ?? "reserved";
+    const src = e.proc ? displaySource(e.proc) : "reserved";
     const isDetached = e.proc?.source === "detached";
     const mark = e.state === "drift" ? "⚠ " : isDetached ? "⚠ " : "";
     const suffix = isDetached || e.state === "drift" ? " | color=orange" : "";

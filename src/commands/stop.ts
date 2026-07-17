@@ -2,7 +2,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import type { Flags } from "../cli.js";
 import { EXIT } from "../types.js";
-import { scanListeners, classifyTarget, terminate, resolveProjectDir } from "../scan.js";
+import { scanListeners, classifyTarget, terminate, resolveProjectDir, displaySource } from "../scan.js";
 import { Registry } from "../registry.js";
 
 function osascript(script: string): Promise<{ ok: boolean }> {
@@ -18,6 +18,12 @@ function asStr(s: string | number): string {
 
 function notify(msg: string): void {
   void osascript(`display notification ${JSON.stringify(msg)} with title "portmarshal"`);
+}
+
+function stopDockerContainer(containerId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("docker", ["stop", containerId], { timeout: 20_000 }, (err) => err ? reject(err) : resolve());
+  });
 }
 
 export default async function stop(flags: Flags): Promise<number> {
@@ -55,19 +61,28 @@ export default async function stop(flags: Flags): Promise<number> {
     return EXIT.NOT_FOUND;
   }
 
+  // Docker Desktop 的一个后端 PID 会承载多个项目的全部映射端口；没有容器元数据时绝不能 kill 它。
+  if (proc.source === "docker" && !proc.docker) {
+    process.stderr.write(
+      `Blocked: Docker container metadata is unavailable for port ${port}; refusing to signal the shared Docker host process\n`,
+    );
+    return EXIT.BLOCKED;
+  }
+
   const kind = classifyTarget(proc, callerCwd, entries);
-  const desc = `${port} (${proc.source} · ${resolveProjectDir(proc) ?? "?"} · pid ${proc.pid})`;
+  const identity = proc.docker ? `container ${proc.docker.containerName}` : `pid ${proc.pid}`;
+  const desc = `${port} (${displaySource(proc)} · ${resolveProjectDir(proc) ?? "?"} · ${identity})`;
 
   if (kind === "foreign" && !flags.force) {
     if (flags.gui) {
       const proj = resolveProjectDir(proc) ?? "?";
-      const dialogText = `"Port " & ${asStr(port)} & " is an active " & ${asStr(proc.source)} & " service in " & ${asStr(proj)} & ". Stop it?"`;
+      const dialogText = `"Port " & ${asStr(port)} & " is an active " & ${asStr(displaySource(proc))} & " service in " & ${asStr(proj)} & ". Stop it?"`;
       const { ok } = await osascript(
         `display dialog ${dialogText} with title "portmarshal" buttons {"Cancel","Stop"} default button "Cancel" cancel button "Cancel" with icon caution`,
       );
       if (!ok) return EXIT.OK; // 用户取消
     } else {
-      const info = { port, pid: proc.pid, source: proc.source, project: resolveProjectDir(proc), command: proc.command };
+      const info = { port, pid: proc.pid, source: displaySource(proc), project: resolveProjectDir(proc), command: proc.command, docker: proc.docker };
       if (flags.json) {
         process.stdout.write(JSON.stringify({ blocked: true, ...info }) + "\n");
       } else {
@@ -77,7 +92,19 @@ export default async function stop(flags: Flags): Promise<number> {
     }
   }
 
-  const how = await terminate(proc.pid);
+  let how: "term" | "kill" | "gone" | "docker-stop";
+  try {
+    if (proc.docker) {
+      await stopDockerContainer(proc.docker.containerId);
+      how = "docker-stop";
+    } else {
+      how = await terminate(proc.pid);
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Failed to stop ${desc}: ${detail}\n`);
+    return EXIT.ERR;
+  }
   // 进程可能监听多个端口，全部预留记录一并清理
   for (const p of proc.ports) await registry.markReleasedByPort(p);
   const msg = how === "gone" ? "Process was already gone; cleared its claim" : `Stopped ${desc}${how === "kill" ? " (SIGKILL)" : ""}`;
