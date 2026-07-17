@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from "node:fs/promises";
 import { EXIT } from "./types.js";
 
 export interface Flags {
@@ -55,6 +56,7 @@ const HELP = `portscout — 本机端口服务侦察与调度
   portscout gc [--kill-orphans]
   portscout watch
   portscout menubar [--install]
+  portscout -v | --version
 `;
 
 type CommandFn = (flags: Flags) => Promise<number>;
@@ -73,6 +75,13 @@ async function main(): Promise<number> {
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd || cmd === "--help" || cmd === "-h" || cmd === "help") {
     process.stdout.write(HELP);
+    return EXIT.OK;
+  }
+  if (cmd === "--version" || cmd === "-v" || cmd === "version") {
+    const pkg = JSON.parse(
+      await fs.readFile(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+    process.stdout.write(pkg.version + "\n");
     return EXIT.OK;
   }
   const loader = COMMANDS[cmd];

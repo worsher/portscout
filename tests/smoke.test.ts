@@ -89,3 +89,11 @@ test("watch 非 TTY 输出单帧后退出而非死循环", async () => {
   const { code } = await cli(["watch"]);
   assert.equal(code, 0);
 });
+
+test("-v / --version 输出 semver 版本号", async () => {
+  const { stdout, code } = await cli(["-v"]);
+  assert.equal(code, 0);
+  assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+  const { stdout: s2 } = await cli(["--version"]);
+  assert.equal(s2, stdout);
+});
