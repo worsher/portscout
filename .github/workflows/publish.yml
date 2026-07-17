@@ -9,7 +9,22 @@ permissions:
   id-token: write # npm provenance 签名需要 OIDC
 
 jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm smoke
+
   publish:
+    needs: test-linux
     runs-on: macos-latest # smoke 测试依赖 lsof/ps/launchctl 真实环境
     steps:
       - uses: actions/checkout@v4

@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import {
   parseLsofListeners, parsePsTable, traceSource,
   inferProjectFromCommand, isNoise, parseLaunchctlList, parsePsCommands, parseLsofCwds,
+  parseSsListeners, parseCgroupServiceUnit,
   scanListeners, resolveProjectDir,
 } from "../src/scan.js";
 import type { Exec } from "../src/exec.js";
-import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS } from "./fixtures.js";
+import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS, SS_TLNP, CGROUP_SYSTEMD_SERVICE, CGROUP_USER_SERVICE, CGROUP_SESSION_SCOPE } from "./fixtures.js";
 
 test("parseLsofListeners 解析机器格式并处理 IPv6", () => {
   const entries = parseLsofListeners(LSOF_FPCN);
@@ -116,7 +117,7 @@ test("parseLaunchctlList 提取受管服务 pid→label 映射", () => {
 
 test("traceSource 三层判定：launchd 受管 / .app 兜底 / 真孤儿", () => {
   const table = parsePsTable(PS_TABLE);
-  const launchd = new Map([[12000, "com.openclaw.gateway"]]);
+  const launchd = new Map([[12000, "launchd:com.openclaw.gateway"]]);
   // launchd 受管服务（OpenClaw gateway 场景）——带出注册 label
   assert.equal(traceSource(12000, table, launchd), "launchd:com.openclaw.gateway");
   // 其子进程沿链归属到受管链根
@@ -141,4 +142,30 @@ test("parseLsofCwds 解析批量 cwd 输出", () => {
   assert.equal(cwds.get(2755), "/private/tmp/site-platform/scratchpad");
   assert.equal(cwds.get(8660), "/Users/worsher/code/work/mu_frontend");
   assert.equal(cwds.has(31401), false); // 批量输出中缺失的 pid（如已退出）
+});
+
+test("parseSsListeners 解析 ss -tlnp：IPv6/多 pid 共享/无权限行", () => {
+  const entries = parseSsListeners(SS_TLNP);
+  assert.deepEqual(entries, [
+    { pid: 1234, port: 8000, address: "127.0.0.1" },
+    { pid: 2345, port: 9000, address: "[::1]" },
+    { pid: 3456, port: 3000, address: "0.0.0.0" }, // 多 pid 取第一个
+    // 22 端口无 Process 列（无权限）→ 无法归属，跳过
+  ]);
+});
+
+test("parseCgroupServiceUnit 识别 systemd 服务与会话进程", () => {
+  // 系统服务
+  assert.equal(parseCgroupServiceUnit(CGROUP_SYSTEMD_SERVICE), "openclaw-gateway.service");
+  // 用户级服务（user@1000.service 出现在中间不算，取末段）
+  assert.equal(parseCgroupServiceUnit(CGROUP_USER_SERVICE), "my-agent.service");
+  // 登录会话的普通进程（.scope 结尾）→ 非受管服务
+  assert.equal(parseCgroupServiceUnit(CGROUP_SESSION_SCOPE), null);
+});
+
+test("traceSource 在 Linux 下用 systemd 标签替代孤儿判定", () => {
+  const table = parsePsTable(PS_TABLE);
+  const managed = new Map([[12000, "systemd:openclaw-gateway.service"]]);
+  assert.equal(traceSource(12000, table, managed), "systemd:openclaw-gateway.service");
+  assert.equal(traceSource(14000, table, managed), "systemd:openclaw-gateway.service"); // 子进程沿链归属
 });

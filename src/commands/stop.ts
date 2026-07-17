@@ -26,6 +26,10 @@ export default async function stop(flags: Flags): Promise<number> {
     process.stderr.write("用法: portscout stop <port|name> [--force|--gui]\n");
     return EXIT.ERR;
   }
+  if (flags.gui && process.platform !== "darwin") {
+    process.stderr.write("--gui 依赖 macOS 的 osascript，本平台不可用；请使用 --force 或交互确认\n");
+    return EXIT.ERR;
+  }
   const registry = new Registry();
   const entries = await registry.load();
   const callerCwd = path.resolve(flags.project ?? process.cwd());

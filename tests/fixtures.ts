@@ -58,3 +58,19 @@ p8660
 fcwd
 n/Users/worsher/code/work/mu_frontend
 `;
+
+/** Linux: ss -tlnp 输出样本（含表头、IPv6、无权限缺 Process 列、SO_REUSEPORT 多 pid） */
+export const SS_TLNP = `State    Recv-Q   Send-Q     Local Address:Port       Peer Address:Port   Process
+LISTEN   0        511            127.0.0.1:8000            0.0.0.0:*       users:(("node",pid=1234,fd=20))
+LISTEN   0        4096               [::1]:9000               [::]:*       users:(("python3",pid=2345,fd=3))
+LISTEN   0        511              0.0.0.0:3000            0.0.0.0:*       users:(("node",pid=3456,fd=18),("node",pid=3457,fd=18))
+LISTEN   0        4096             0.0.0.0:22               0.0.0.0:*
+`;
+
+/** Linux: /proc/<pid>/cgroup 样本 */
+export const CGROUP_SYSTEMD_SERVICE = `0::/system.slice/openclaw-gateway.service
+`;
+export const CGROUP_USER_SERVICE = `0::/user.slice/user-1000.slice/user@1000.service/app.slice/my-agent.service
+`;
+export const CGROUP_SESSION_SCOPE = `0::/user.slice/user-1000.slice/session-4.scope
+`;

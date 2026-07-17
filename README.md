@@ -6,7 +6,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Port recon & guarded orchestration for multi-agent local development on macOS. When Claude Code, Cursor, Antigravity and friends all spin up dev servers on one machine, portscout answers *"which port belongs to which project, started by which agent"* — and provides idempotent port reservation plus a three-tier guarded stop so agents don't shoot each other down.
+Port recon & guarded orchestration for multi-agent local development on macOS and Linux. When Claude Code, Cursor, Antigravity and friends all spin up dev servers on one machine, portscout answers *"which port belongs to which project, started by which agent"* — and provides idempotent port reservation plus a three-tier guarded stop so agents don't shoot each other down.
 
 ![demo](docs/demo.gif)
 
@@ -27,7 +27,7 @@ npm install -g @worsher/portscout
 portscout --help
 ```
 
-Menu bar (optional): `brew install swiftbar`, launch it once, then `portscout menubar --install`.
+Menu bar (optional, macOS): `brew install swiftbar`, launch it once, then `portscout menubar --install`. On Linux, `portscout menubar` emits xbar-protocol text you can wire into [Argos](https://github.com/p-e-w/argos) (GNOME).
 
 ## Commands
 
@@ -44,7 +44,7 @@ Menu bar (optional): `brew install swiftbar`, launch it once, then `portscout me
 
 ## Source attribution
 
-Every listening port is attributed to its launcher via parent-chain analysis: `claude-code` / `cursor` / `antigravity` / `vscode/electron` / `terminal` / `docker`; `launchd:<label>` for launchd-managed services (cross-checked against `launchctl list`, so auto-started daemons like an OpenClaw gateway are never mistaken for orphans); `app` for double-forked GUI-app helpers; `orphan` only for truly abandoned processes — the only category `gc` will touch.
+Every listening port is attributed to its launcher via parent-chain analysis: `claude-code` / `cursor` / `antigravity` / `vscode/electron` / `terminal` / `docker`; `launchd:<label>` (macOS, cross-checked against `launchctl list`) or `systemd:<unit>` (Linux, via `/proc/<pid>/cgroup`) for managed services — so auto-started daemons like an OpenClaw gateway are never mistaken for orphans; `app` for double-forked GUI-app helpers (macOS); `orphan` only for truly abandoned processes — the only category `gc` will touch.
 
 ## The three-tier stop guard
 
@@ -85,4 +85,6 @@ Releasing: bump `version` in package.json → commit → `git tag v<version> && 
 
 Design doc: [docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md) · Changelog: [CHANGELOG.md](CHANGELOG.md)
 
-macOS · Node ≥ 18 · zero runtime dependencies · MIT
+macOS & Linux · Node ≥ 18 · zero runtime dependencies · MIT
+
+Platform internals: macOS uses `lsof`/`launchctl`; Linux uses `ss -tlnp` and reads `/proc/<pid>/{cwd,cgroup}` directly (zero extra forks). `--gui` and `menubar --install` are macOS-only.

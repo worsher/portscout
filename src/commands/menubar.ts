@@ -54,6 +54,13 @@ async function swiftBarPluginDir(): Promise<string | null> {
 }
 
 async function install(binPath: string): Promise<number> {
+  if (process.platform !== "darwin") {
+    process.stderr.write(
+      "menubar --install 仅支持 macOS（SwiftBar）。Linux 上可将 `portscout menubar` 的输出接入兼容 xbar 协议的工具（如 GNOME Argos）：\n" +
+      "  ln -s \"" + binPath + "\" ~/.config/argos/portscout.5s+.sh\n",
+    );
+    return EXIT.ERR;
+  }
   const dir = await swiftBarPluginDir();
   if (!dir) {
     process.stderr.write(

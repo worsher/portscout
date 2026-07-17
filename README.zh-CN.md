@@ -83,4 +83,4 @@ pnpm build   # tsc
 
 设计文档：[docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md) · 实施计划：[docs/plans/2026-07-16-portscout-implementation.md](docs/plans/2026-07-16-portscout-implementation.md)
 
-macOS · Node ≥ 18 · 零运行时依赖
+macOS & Linux · Node ≥ 18 · 零运行时依赖（Linux 用 `ss` + `/proc` 直读，零额外 fork；`--gui` 与 `menubar --install` 仅 macOS，Linux 可将 menubar 输出接入 GNOME Argos）

@@ -1,6 +1,6 @@
 {
   "name": "@worsher/portscout",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -31,7 +31,8 @@
     "swiftbar"
   ],
   "os": [
-    "darwin"
+    "darwin",
+    "linux"
   ],
   "engines": {
     "node": ">=18.17"

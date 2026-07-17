@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type { ListenEntry, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
 import { realExec, type Exec } from "./exec.js";
 
@@ -49,7 +50,72 @@ export function parseLaunchctlList(text: string): Map<number, string> {
   return services;
 }
 
-export function traceSource(pid: number, table: Map<number, PsRow>, launchdServices?: Map<number, string>): string {
+/** Linux: ss -tlnp 输出 → 监听条目（无 Process 列的行无法归属，跳过；多 pid 共享 socket 取第一个） */
+export function parseSsListeners(text: string): ListenEntry[] {
+  const out: ListenEntry[] = [];
+  for (const line of text.split("\n")) {
+    if (!/^LISTEN\b/.test(line)) continue;
+    const pidMatch = /pid=(\d+)/.exec(line);
+    if (!pidMatch) continue;
+    const cols = line.trim().split(/\s+/);
+    const local = cols[3] ?? "";
+    const i = local.lastIndexOf(":");
+    if (i < 0) continue;
+    const port = Number(local.slice(i + 1));
+    if (!Number.isFinite(port) || port <= 0) continue;
+    out.push({ pid: Number(pidMatch[1]), port, address: local.slice(0, i) });
+  }
+  return out;
+}
+
+/** Linux: /proc/<pid>/cgroup → systemd 服务单元名；.scope 结尾（登录会话进程）返回 null */
+export function parseCgroupServiceUnit(text: string): string | null {
+  for (const line of text.split("\n")) {
+    const path = line.slice(line.lastIndexOf(":") + 1);
+    const last = path.split("/").filter(Boolean).pop();
+    if (last?.endsWith(".service")) return last;
+  }
+  return null;
+}
+
+/** Linux: 批量读 /proc/<pid>/cwd 符号链接（零子进程） */
+export async function linuxCwds(
+  pids: number[],
+  readlink: (p: string) => Promise<string> = (p) => fs.readlink(p),
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  await Promise.all(
+    pids.map(async (pid) => {
+      try {
+        map.set(pid, await readlink(`/proc/${pid}/cwd`));
+      } catch {
+        /* 进程已退出或无权限 */
+      }
+    }),
+  );
+  return map;
+}
+
+/** Linux: 批量读 /proc/<pid>/cgroup 判定 systemd 受管服务 → pid→"systemd:<unit>" */
+export async function linuxServiceLabels(
+  pids: number[],
+  readFile: (p: string) => Promise<string> = (p) => fs.readFile(p, "utf8"),
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  await Promise.all(
+    pids.map(async (pid) => {
+      try {
+        const unit = parseCgroupServiceUnit(await readFile(`/proc/${pid}/cgroup`));
+        if (unit) map.set(pid, `systemd:${unit}`);
+      } catch {
+        /* 进程已退出或无权限 */
+      }
+    }),
+  );
+  return map;
+}
+
+export function traceSource(pid: number, table: Map<number, PsRow>, managedServices?: Map<number, string>): string {
   let cur = table.get(pid);
   if (!cur) return "?";
   for (let depth = 0; cur && depth < 20; depth++) {
@@ -59,9 +125,9 @@ export function traceSource(pid: number, table: Map<number, PsRow>, launchdServi
     }
     if (cur.ppid === 1) {
       // ppid=1 有三种可能，仅最后一种是真孤儿：
-      // 1) launchd 受管服务（LaunchAgent/登录项，如 OpenClaw gateway）——launchctl list 可查，带出注册 label
-      const label = launchdServices?.get(cur.pid);
-      if (label) return `launchd:${label}`;
+      // 1) 受管服务（macOS launchd / Linux systemd）——map 值即完整标签（launchd:xxx / systemd:xxx）
+      const label = managedServices?.get(cur.pid);
+      if (label) return label;
       // 2) 双 fork 自愿 daemon 化的 GUI 应用后台进程——仅认 /Applications 安装位置，
       //    避免误伤 framework 内嵌的 .app（如 homebrew Python 的 Python.app 解释器壳）
       if (/^\/(?:Applications|Users\/[^/]+\/Applications)\/.*\.app\//.test(cur.comm)) return "app";
@@ -110,30 +176,39 @@ export function isNoise(procName: string): boolean {
   return NOISE.test(procName);
 }
 
-export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[]> {
-  // 固定 4 次并行调用拿全量数据（不随监听进程数增长）
-  const [lsofOut, psOut, psCmdOut, launchctlOut] = await Promise.all([
-    exec("lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-Fpcn"]),
+export async function scanListeners(exec: Exec = realExec, platform: NodeJS.Platform = process.platform): Promise<ProcessInfo[]> {
+  const linux = platform === "linux";
+  // 固定次数并行调用拿全量数据（不随监听进程数增长）
+  const [listenOut, psOut, psCmdOut, launchctlOut] = await Promise.all([
+    linux
+      ? exec("ss", ["-tlnp"])
+      : exec("lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-Fpcn"]),
     exec("ps", ["-axo", "pid=,ppid=,comm="]),
     exec("ps", ["-axo", "pid=,command="]),
-    exec("launchctl", ["list"]),
+    linux ? Promise.resolve("") : exec("launchctl", ["list"]),
   ]);
-  const listens = parseLsofListeners(lsofOut);
+  const listens = linux ? parseSsListeners(listenOut) : parseLsofListeners(listenOut);
   const table = parsePsTable(psOut);
   const commands = parsePsCommands(psCmdOut);
-  const launchdServices = parseLaunchctlList(launchctlOut);
 
   const byPid = new Map<number, Set<number>>();
   for (const l of listens) {
     if (!byPid.has(l.pid)) byPid.set(l.pid, new Set());
     byPid.get(l.pid)!.add(l.port);
   }
-
-  // 第 5 次调用：一次 lsof 批量反查全部监听进程的 cwd（-p 支持逗号分隔列表）
   const pids = [...byPid.keys()];
-  const cwds = pids.length
-    ? parseLsofCwds(await exec("lsof", ["-a", "-p", pids.join(","), "-d", "cwd", "-Fn"]))
-    : new Map<number, string>();
+
+  // 受管服务标签：macOS 用 launchctl list，Linux 读 /proc/<pid>/cgroup
+  const managedServices = linux
+    ? await linuxServiceLabels(pids)
+    : new Map([...parseLaunchctlList(launchctlOut)].map(([p, l]) => [p, `launchd:${l}`] as const));
+
+  // cwd 反查：macOS 一次 lsof 批量（-p 逗号列表），Linux 读 /proc/<pid>/cwd 符号链接
+  const cwds = linux
+    ? await linuxCwds(pids)
+    : pids.length
+      ? parseLsofCwds(await exec("lsof", ["-a", "-p", pids.join(","), "-d", "cwd", "-Fn"]))
+      : new Map<number, string>();
 
   const infos = pids.map((pid): ProcessInfo => {
     const ports = byPid.get(pid)!;
@@ -146,7 +221,7 @@ export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[
       command,
       cwd: cwds.get(pid) ?? null,
       inferredProject: inferProjectFromCommand(command),
-      source: traceSource(pid, table, launchdServices),
+      source: traceSource(pid, table, managedServices),
     };
   });
   return infos.sort((a, b) => (a.ports[0] ?? 0) - (b.ports[0] ?? 0));

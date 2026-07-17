@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-07-17
+
+- **Linux 支持**：监听扫描用 `ss -tlnp`（免 lsof 依赖），cwd/受管服务判定直读 `/proc/<pid>/{cwd,cgroup}`（零额外 fork）；systemd 服务标为 `systemd:<unit>`（与 macOS `launchd:<label>` 同语义，不会被误判孤儿）；whois 探测 systemd unit 定义文件
+- CI 双平台测试矩阵（ubuntu + macos），发布前强制通过 Linux 门禁
+- `--gui` 与 `menubar --install` 在非 macOS 平台明确报错（menubar 协议输出保留，可接 GNOME Argos）
+
 ## 0.1.4 — 2026-07-17
 
 - GitHub Actions 发布流水线：push `v*` tag 自动发布到 npm（macOS runner 全量门禁：tag/版本一致性校验 + build + 单测 + 冒烟 + provenance 签名）
