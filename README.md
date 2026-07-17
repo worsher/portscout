@@ -8,6 +8,16 @@
 
 PortMarshal is an agent-aware ownership and safety layer for local development services on macOS and Linux. It maps attributable TCP listeners to their PID, project directory, and launching agent; coordinates sticky port claims; detects port drift; and blocks one agent from stopping another agent's active service by default.
 
+## Try it in 30 seconds
+
+```bash
+npm install -g portmarshal
+portmarshal list
+portmarshal whois 3000
+```
+
+The last command inspects the process, project, and agent behind a dev server already listening on port 3000.
+
 ![PortMarshal demo](docs/demo.gif)
 
 ## Why

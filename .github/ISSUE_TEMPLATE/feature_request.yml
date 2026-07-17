@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a focused improvement to PortMarshal
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the workflow problem first. Concrete multi-agent development examples make proposals much easier to evaluate.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the command, output, integration, or policy you would like to add.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example workflow
+      description: Show a short command sequence or scenario if possible.
+      render: shell
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How are you solving this today, or what other designs did you consider?
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platform scope
+      multiple: true
+      options:
+        - macOS
+        - Linux
+        - Platform independent
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues for a similar request.
+          required: true
+        - label: This request is focused on local service ownership, attribution, or guarded orchestration.
+          required: true
