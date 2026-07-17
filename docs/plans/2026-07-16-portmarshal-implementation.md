@@ -1,6 +1,6 @@
 # PortMarshal 初始实施计划（历史快照）
 
-> 本文保留 v0.1.0 的任务拆分与当时代码草案，仅用于追溯实现过程。当前命令、来源标签和安全语义以 README、设计文档与 `src/` 为准；v0.3.0 已将 `orphan` 更正为 `detached`，并支持 Linux。
+> 本文保留 v0.1.0 的任务拆分与当时代码草案，仅用于追溯实现过程。当前命令、来源标签和安全语义以 README、设计文档与 `src/` 为准；v0.3.1 已将 `orphan` 更正为 `detached`，并支持 Linux。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -1,6 +1,6 @@
 # PortMarshal
 
-[![npm](https://img.shields.io/npm/v/@worsher/portmarshal)](https://www.npmjs.com/package/@worsher/portmarshal) [![test](https://github.com/worsher/portmarshal/actions/workflows/test.yml/badge.svg)](https://github.com/worsher/portmarshal/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![npm](https://img.shields.io/npm/v/portmarshal)](https://www.npmjs.com/package/portmarshal) [![test](https://github.com/worsher/portmarshal/actions/workflows/test.yml/badge.svg)](https://github.com/worsher/portmarshal/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > Know which coding agent owns a local dev server — and stop the wrong one from being killed.
 
@@ -23,7 +23,7 @@ PortMarshal scans first and coordinates second. Existing listeners do not need t
 ## Install
 
 ```bash
-npm install -g @worsher/portmarshal
+npm install -g portmarshal
 portmarshal --help
 ```
 
@@ -32,8 +32,8 @@ Requires Node.js 18.17 or newer. The runtime has no npm dependencies.
 ### Migrating from PortScout
 
 ```bash
-npm uninstall -g @worsher/portscout
-npm install -g @worsher/portmarshal
+npm uninstall -g @worsher/portscout @worsher/portmarshal
+npm install -g portmarshal
 ```
 
 On first use, PortMarshal copies an existing `~/.portscout/registry.json` into `~/.portmarshal/registry.json`, preserving sticky claims without deleting the old data.

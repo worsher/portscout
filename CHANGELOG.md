@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 — 2026-07-17
+
+- Publish the canonical package without an npm scope: install with `npm install -g portmarshal`
+- Deprecate the short-lived `@worsher/portmarshal@0.3.0` package in favor of `portmarshal`
+
 ## 0.3.0 — 2026-07-17
 
 - **Renamed to PortMarshal**: new npm package `@worsher/portmarshal`, CLI command `portmarshal`, repository URLs, docs, demo, and Claude Code integration; the registry is automatically copied from `~/.portscout` to `~/.portmarshal` on first use

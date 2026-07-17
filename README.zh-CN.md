@@ -1,6 +1,6 @@
 # PortMarshal
 
-[![npm](https://img.shields.io/npm/v/@worsher/portmarshal)](https://www.npmjs.com/package/@worsher/portmarshal) [![test](https://github.com/worsher/portmarshal/actions/workflows/test.yml/badge.svg)](https://github.com/worsher/portmarshal/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![npm](https://img.shields.io/npm/v/portmarshal)](https://www.npmjs.com/package/portmarshal) [![test](https://github.com/worsher/portmarshal/actions/workflows/test.yml/badge.svg)](https://github.com/worsher/portmarshal/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > 知道本地开发服务属于哪个 Agent，并阻止错误的服务被停止。
 
@@ -13,7 +13,7 @@ PortMarshal 是面向 macOS 和 Linux 多 Agent 本地开发的服务归属与�
 ## 安装
 
 ```bash
-npm install -g @worsher/portmarshal
+npm install -g portmarshal
 portmarshal --help
 ```
 
@@ -22,8 +22,8 @@ portmarshal --help
 ### 从 PortScout 迁移
 
 ```bash
-npm uninstall -g @worsher/portscout
-npm install -g @worsher/portmarshal
+npm uninstall -g @worsher/portscout @worsher/portmarshal
+npm install -g portmarshal
 ```
 
 首次运行时，PortMarshal 会把已有的 `~/.portscout/registry.json` 复制到 `~/.portmarshal/registry.json`，保留粘性 claim，同时不会删除旧数据。

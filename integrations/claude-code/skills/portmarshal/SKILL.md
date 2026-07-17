@@ -5,7 +5,7 @@ description: 本机端口服务的查询、协作式 claim 与带护栏停止。
 
 # portmarshal — 端口侦察与调度
 
-前置：`npm i -g @worsher/portmarshal`（macOS 或 Linux）。查询与处置命令可用 `--json` 获得结构化输出。
+前置：`npm i -g portmarshal`（macOS 或 Linux）。查询与处置命令可用 `--json` 获得结构化输出。
 
 ## 启动 dev server 之前
 
