@@ -42,3 +42,19 @@ export const LAUNCHCTL_LIST = `PID	Status	Label
 1513	0	com.apple.Finder
 12000	0	com.openclaw.gateway
 `;
+
+/** ps -axo pid=,command= 全表样本（pid + 完整命令行） */
+export const PS_COMMANDS = `    1 /sbin/launchd
+ 2755 python3 -m http.server 8901
+ 8660 /Users/worsher/.n/bin/node /Users/worsher/code/work/mu_frontend/node_modules/umi/bin/forkedDev.js
+31401 /Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app/Contents/MacOS/Cursor Helper (Plugin) --type=extensionHost
+`;
+
+/** lsof -a -p p1,p2,... -d cwd -Fn 批量输出样本 */
+export const LSOF_CWDS = `p2755
+fcwd
+n/private/tmp/site-platform/scratchpad
+p8660
+fcwd
+n/Users/worsher/code/work/mu_frontend
+`;

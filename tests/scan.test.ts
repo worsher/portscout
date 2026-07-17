@@ -2,11 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseLsofListeners, parsePsTable, traceSource,
-  inferProjectFromCommand, isNoise, parseLaunchctlList,
+  inferProjectFromCommand, isNoise, parseLaunchctlList, parsePsCommands, parseLsofCwds,
   scanListeners, resolveProjectDir,
 } from "../src/scan.js";
 import type { Exec } from "../src/exec.js";
-import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST } from "./fixtures.js";
+import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS } from "./fixtures.js";
 
 test("parseLsofListeners 解析机器格式并处理 IPv6", () => {
   const entries = parseLsofListeners(LSOF_FPCN);
@@ -71,16 +71,12 @@ test("isNoise 覆盖更多噪声模式与正常进程", () => {
 const fakeExec: Exec = async (cmd, args) => {
   if (cmd === "lsof" && args.includes("-Fpcn")) return LSOF_FPCN;
   if (cmd === "ps" && args.includes("pid=,ppid=,comm=")) return PS_TABLE;
+  if (cmd === "ps" && args.includes("pid=,command=")) return PS_COMMANDS;
+  if (cmd === "launchctl") return LAUNCHCTL_LIST;
   if (cmd === "lsof" && args.includes("cwd")) {
-    const pid = args[args.indexOf("-p") + 1];
-    if (pid === "2755") return "p2755\nfcwd\nn/private/tmp/site-platform/scratchpad\n";
-    if (pid === "8660") return "p8660\nfcwd\nn/Users/worsher/code/work/mu_frontend\n";
-    return "";
-  }
-  if (cmd === "ps" && args.includes("command=")) {
-    const pid = args[args.indexOf("-p") + 1];
-    if (pid === "2755") return "python3 -m http.server 8901\n";
-    if (pid === "8660") return "/Users/worsher/.n/bin/node /Users/worsher/code/work/mu_frontend/node_modules/umi/bin/forkedDev.js\n";
+    // 批量调用：-p 后应是逗号分隔的全部 pid
+    const pids = args[args.indexOf("-p") + 1];
+    if (pids.includes(",")) return LSOF_CWDS;
     return "";
   }
   return "";
@@ -131,4 +127,18 @@ test("traceSource 三层判定：launchd 受管 / .app 兜底 / 真孤儿", () =
   assert.equal(traceSource(2755, table, launchd), "orphan");
   // 不传 launchd 集合时向后兼容——但 .app 兜底仍生效
   assert.equal(traceSource(2755, table), "orphan");
+});
+
+test("parsePsCommands 建立 pid→完整命令行 映射", () => {
+  const cmds = parsePsCommands(PS_COMMANDS);
+  assert.equal(cmds.get(2755), "python3 -m http.server 8901");
+  assert.equal(cmds.get(8660)?.includes("umi/bin/forkedDev.js"), true);
+  assert.equal(cmds.get(31401)?.includes("--type=extensionHost"), true);
+});
+
+test("parseLsofCwds 解析批量 cwd 输出", () => {
+  const cwds = parseLsofCwds(LSOF_CWDS);
+  assert.equal(cwds.get(2755), "/private/tmp/site-platform/scratchpad");
+  assert.equal(cwds.get(8660), "/Users/worsher/code/work/mu_frontend");
+  assert.equal(cwds.has(31401), false); // 批量输出中缺失的 pid（如已退出）
 });

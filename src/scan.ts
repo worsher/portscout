@@ -74,6 +74,27 @@ export function traceSource(pid: number, table: Map<number, PsRow>, launchdServi
   return "?";
 }
 
+/** ps -axo pid=,command= 全表输出 → pid→完整命令行 映射（一次调用替代 per-pid 查询） */
+export function parsePsCommands(text: string): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const line of text.split("\n")) {
+    const m = /^\s*(\d+)\s+(.+)$/.exec(line);
+    if (m) map.set(Number(m[1]), m[2].trim());
+  }
+  return map;
+}
+
+/** lsof -a -p p1,p2,... -d cwd -Fn 批量输出 → pid→cwd 映射（一次调用替代 per-pid 查询） */
+export function parseLsofCwds(text: string): Map<number, string> {
+  const map = new Map<number, string>();
+  let pid = 0;
+  for (const line of text.split("\n")) {
+    if (line.startsWith("p")) pid = Number(line.slice(1));
+    else if (line.startsWith("n") && pid > 0) map.set(pid, line.slice(1));
+  }
+  return map;
+}
+
 /** cwd 失真兜底：从命令行第一个含 node_modules 或以 / 开头的脚本参数推断项目根 */
 export function inferProjectFromCommand(command: string): string | null {
   for (const tok of command.split(/\s+/)) {
@@ -90,13 +111,16 @@ export function isNoise(procName: string): boolean {
 }
 
 export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[]> {
-  const [lsofOut, psOut, launchctlOut] = await Promise.all([
+  // 固定 4 次并行调用拿全量数据（不随监听进程数增长）
+  const [lsofOut, psOut, psCmdOut, launchctlOut] = await Promise.all([
     exec("lsof", ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-Fpcn"]),
     exec("ps", ["-axo", "pid=,ppid=,comm="]),
+    exec("ps", ["-axo", "pid=,command="]),
     exec("launchctl", ["list"]),
   ]);
   const listens = parseLsofListeners(lsofOut);
   const table = parsePsTable(psOut);
+  const commands = parsePsCommands(psCmdOut);
   const launchdServices = parseLaunchctlList(launchctlOut);
 
   const byPid = new Map<number, Set<number>>();
@@ -105,26 +129,26 @@ export async function scanListeners(exec: Exec = realExec): Promise<ProcessInfo[
     byPid.get(l.pid)!.add(l.port);
   }
 
-  const infos = await Promise.all(
-    [...byPid.entries()].map(async ([pid, ports]): Promise<ProcessInfo> => {
-      const [cwdOut, cmdOut] = await Promise.all([
-        exec("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"]),
-        exec("ps", ["-o", "command=", "-p", String(pid)]),
-      ]);
-      const cwdLine = cwdOut.split("\n").find((l) => l.startsWith("n"));
-      const command = cmdOut.trim();
-      const comm = table.get(pid)?.comm ?? "?";
-      return {
-        pid,
-        ports: [...ports].sort((a, b) => a - b),
-        procName: comm.split("/").pop() ?? "?",
-        command,
-        cwd: cwdLine ? cwdLine.slice(1) : null,
-        inferredProject: inferProjectFromCommand(command),
-        source: traceSource(pid, table, launchdServices),
-      };
-    }),
-  );
+  // 第 5 次调用：一次 lsof 批量反查全部监听进程的 cwd（-p 支持逗号分隔列表）
+  const pids = [...byPid.keys()];
+  const cwds = pids.length
+    ? parseLsofCwds(await exec("lsof", ["-a", "-p", pids.join(","), "-d", "cwd", "-Fn"]))
+    : new Map<number, string>();
+
+  const infos = pids.map((pid): ProcessInfo => {
+    const ports = byPid.get(pid)!;
+    const command = commands.get(pid) ?? "";
+    const comm = table.get(pid)?.comm ?? "?";
+    return {
+      pid,
+      ports: [...ports].sort((a, b) => a - b),
+      procName: comm.split("/").pop() ?? "?",
+      command,
+      cwd: cwds.get(pid) ?? null,
+      inferredProject: inferProjectFromCommand(command),
+      source: traceSource(pid, table, launchdServices),
+    };
+  });
   return infos.sort((a, b) => (a.ports[0] ?? 0) - (b.ports[0] ?? 0));
 }
 
