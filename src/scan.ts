@@ -119,20 +119,23 @@ export function traceSource(pid: number, table: Map<number, PsRow>, managedServi
   let cur = table.get(pid);
   if (!cur) return "?";
   for (let depth = 0; cur && depth < 20; depth++) {
+    // Linux 的 cgroup 标签挂在实际监听 pid 上；macOS 的 launchctl 标签通常挂在链根。
+    // 每一层都检查，才能同时覆盖 systemd 子进程和 launchd 直接/间接子进程。
+    const managedLabel = managedServices?.get(cur.pid);
+    if (managedLabel) return managedLabel;
     const base = cur.comm.split("/").pop() ?? cur.comm;
     for (const [re, label] of SOURCE_PATTERNS) {
       if (re.test(base)) return label;
     }
     if (cur.ppid === 1) {
-      // ppid=1 有三种可能，仅最后一种是真孤儿：
+      // ppid=1 有三种可能，最后一种只能确认已脱离会话：
       // 1) 受管服务（macOS launchd / Linux systemd）——map 值即完整标签（launchd:xxx / systemd:xxx）
-      const label = managedServices?.get(cur.pid);
-      if (label) return label;
       // 2) 双 fork 自愿 daemon 化的 GUI 应用后台进程——仅认 /Applications 安装位置，
       //    避免误伤 framework 内嵌的 .app（如 homebrew Python 的 Python.app 解释器壳）
       if (/^\/(?:Applications|Users\/[^/]+\/Applications)\/.*\.app\//.test(cur.comm)) return "app";
-      // 3) 父进程退出后被 launchd 收养的遗留进程
-      return "orphan";
+      // 3) 父链已脱离当前会话。它可能是遗留进程，也可能是有意 daemon 化的服务，
+      // 因此只标记 detached，不宣称它一定是可安全清理的“真孤儿”。
+      return "detached";
     }
     if (cur.ppid <= 0) return "?";
     cur = table.get(cur.ppid);
@@ -236,8 +239,8 @@ export function classifyTarget(
   proc: ProcessInfo,
   callerCwd: string,
   registry: RegistryEntry[],
-): "orphan" | "own" | "foreign" {
-  if (proc.source === "orphan") return "orphan";
+): "detached" | "own" | "foreign" {
+  if (proc.source === "detached") return "detached";
   const proj = resolveProjectDir(proc);
   if (proj && (proj === callerCwd || proj.startsWith(callerCwd + "/") || callerCwd.startsWith(proj + "/"))) {
     return "own";

@@ -7,10 +7,10 @@ import { Registry } from "../registry.js";
 import { formatTable, C } from "../render.js";
 
 const STATE_LABEL: Record<string, string> = {
-  active: `${C.green}●${C.reset} 正常`,
-  reserved: `${C.dim}◐ 预留${C.reset}`,
-  unregistered: "○ 未注册",
-  drift: `${C.yellow}⚠ 漂移${C.reset}`,
+  active: `${C.green}●${C.reset} active`,
+  reserved: `${C.dim}◐ reserved${C.reset}`,
+  unregistered: "○ unregistered",
+  drift: `${C.yellow}⚠ drift${C.reset}`,
 };
 
 export default async function list(flags: Flags): Promise<number> {
@@ -36,14 +36,14 @@ export default async function list(flags: Flags): Promise<number> {
     STATE_LABEL[e.state],
     e.proc ? String(e.proc.pid) : "-",
     e.proc
-      ? (e.proc.source === "orphan" ? `${C.yellow}orphan${C.reset}` : e.proc.source)
+      ? (e.proc.source === "detached" ? `${C.yellow}detached${C.reset}` : e.proc.source)
       : "-",
     e.reg?.name ?? "-",
     (e.proc ? resolveProjectDir(e.proc) : e.reg?.project) ?? "?",
     e.state === "drift" ? `↔ ${e.driftPeer}` : "",
   ]);
   process.stdout.write(
-    formatTable(["PORT", "状态", "PID", "来源", "预留名", "项目目录", ""], rows) + "\n",
+    formatTable(["PORT", "STATE", "PID", "SOURCE", "CLAIM", "PROJECT", ""], rows) + "\n",
   );
   return EXIT.OK;
 }

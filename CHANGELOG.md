@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-07-17
+
+- **Renamed to PortMarshal**: new npm package `@worsher/portmarshal`, CLI command `portmarshal`, repository URLs, docs, demo, and Claude Code integration; the registry is automatically copied from `~/.portscout` to `~/.portmarshal` on first use
+- **Safer Linux attribution**: systemd cgroup labels are checked at every process-chain level, fixing service children that could previously be misclassified
+- **Honest detached semantics**: reparented unmanaged processes are labeled `detached` instead of being asserted as true orphans; `gc --kill-detached` requires an explicit review-and-kill action, while `--kill-orphans` remains a compatibility alias
+- **Reliable claim reuse**: active claims are revalidated before reuse; if the port belongs to another process, a new port is allocated and the previous port is reported
+- English-first CLI, menu-bar output, validation errors, demo, npm metadata, and promotion copy
+- Stricter validation for `--prefer`, `--range`, `whois`, and numeric `stop` targets
+
 ## 0.2.0 — 2026-07-17
 
 - **Linux 支持**：监听扫描用 `ss -tlnp`（免 lsof 依赖），cwd/受管服务判定直读 `/proc/<pid>/{cwd,cgroup}`（零额外 fork）；systemd 服务标为 `systemd:<unit>`（与 macOS `launchd:<label>` 同语义，不会被误判孤儿）；whois 探测 systemd unit 定义文件

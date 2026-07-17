@@ -12,6 +12,7 @@ const CLI = path.resolve("dist/cli.js");
 const PORT = 18923;
 let server: ChildProcess;
 let projDir: string;
+let stateDir: string;
 
 function waitListening(port: number, timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -30,7 +31,9 @@ function waitListening(port: number, timeoutMs = 5000): Promise<void> {
 
 async function cli(args: string[]): Promise<{ stdout: string; code: number }> {
   try {
-    const { stdout } = await execFileP("node", [CLI, ...args]);
+    const { stdout } = await execFileP("node", [CLI, ...args], {
+      env: { ...process.env, PORTMARSHAL_STATE_DIR: stateDir },
+    });
     return { stdout, code: 0 };
   } catch (e) {
     const err = e as { stdout?: string; code?: number };
@@ -39,7 +42,8 @@ async function cli(args: string[]): Promise<{ stdout: string; code: number }> {
 }
 
 before(async () => {
-  projDir = await fs.mkdtemp(path.join(os.tmpdir(), "portscout-smoke-"));
+  projDir = await fs.mkdtemp(path.join(os.tmpdir(), "portmarshal-smoke-"));
+  stateDir = path.join(projDir, ".portmarshal");
   // 用当前 node 自身起测试服务器，不依赖 CI 环境是否预装 python3
   server = spawn(
     process.execPath,
@@ -49,7 +53,10 @@ before(async () => {
   await waitListening(PORT);
 });
 
-after(() => { server.kill("SIGKILL"); });
+after(async () => {
+  server.kill("SIGKILL");
+  await fs.rm(projDir, { recursive: true, force: true });
+});
 
 test("list --all --json 能归属到正确 cwd", async () => {
   const { stdout } = await cli(["list", "--all", "--json"]);
@@ -96,4 +103,11 @@ test("-v / --version 输出 semver 版本号", async () => {
   assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
   const { stdout: s2 } = await cli(["--version"]);
   assert.equal(s2, stdout);
+});
+
+test("--help 使用 PortMarshal 品牌和英文默认输出", async () => {
+  const { stdout, code } = await cli(["--help"]);
+  assert.equal(code, 0);
+  assert.match(stdout, /^portmarshal — agent-aware local port ownership/);
+  assert.match(stdout, /Usage:/);
 });

@@ -1,39 +1,40 @@
-# Show HN 草稿
+# Show HN draft
 
-> 发帖建议：工作日美西早晨 8-10 点（北京时间 23:00-01:00）；发出后守前 2 小时回复评论。
-> URL 填 GitHub 仓库，不要填 npm。
+> Post with the GitHub repository URL. Stay available for the first two hours to answer technical questions.
 
 ## Title
 
-Show HN: Portscout – Stop AI coding agents from killing each other's dev servers
-
-（备选：Show HN: I gave my AI agents a traffic controller for localhost ports）
+Show HN: PortMarshal – An ownership and kill guard for dev servers started by coding agents
 
 ## Text
 
-Running Claude Code, Cursor and other AI coding agents in parallel on one Mac
-kept producing the same three messes:
+Running Claude Code, Cursor, and other coding agents in parallel on one machine
+kept producing the same three problems: frameworks silently drifting to a new
+port, dev servers surviving after their session exited, and one agent killing a
+service another agent was actively debugging.
 
-- An agent claims port 3000, vite finds it taken and silently drifts to 3001 —
-  now the agent can't find its own dev server
-- Sessions end, dev servers linger as orphan processes nobody can attribute
-- Agent A kills the port agent B is actively debugging on
+PortMarshal is a small CLI that treats this as an ownership and policy problem.
+It scans visible TCP listeners without requiring them to be launched through the
+tool, then maps port → PID → project directory → launching agent through parent-
+chain analysis. launchd and systemd metadata keep managed services distinct from
+processes that merely detached from their original session.
 
-Existing port managers only track services they launched. Portscout scans
-zero-intrusion instead: every listening port gets attributed — port → PID →
-project directory → launching agent, via parent-chain analysis, with
-`launchctl list` cross-checking so auto-started daemons aren't mistaken for
-orphans.
+Cooperative agents can request a sticky port claim with:
 
-On top of that: idempotent port reservation (`PORT=$(portscout claim web)`),
-and a three-tier guarded stop — orphans and your own services stop instantly,
-another agent's live service is blocked with attribution (exit 3) unless you
---force. Agents integrate via three lines in CLAUDE.md; humans get a SwiftBar
-menu-bar view with click-to-stop behind a native confirm dialog.
+    PORT=$(portmarshal claim web --prefer 3000)
 
-TypeScript, zero runtime dependencies, macOS only for now (Linux planned).
-MIT. Built end-to-end with Claude Code in two days — design doc, 8 TDD tasks,
-per-task subagent code review, and the review rounds caught real bugs
-(an AppleScript injection in the confirm dialog among them).
+Before reusing a claim, PortMarshal confirms the port is still free or still
+belongs to the same project. `portmarshal stop` applies a three-tier guard:
+services owned by the caller and reviewed detached services can be stopped,
+while another active service is blocked with attribution and exit code 3 unless
+the user explicitly supplies `--force`.
 
-https://github.com/worsher/portscout
+The scanner is intentionally honest about its limits: Linux listeners without
+visible PID metadata are omitted, and `detached` is a review signal rather than
+a claim that a process is definitely abandoned.
+
+TypeScript, zero runtime dependencies, macOS and Linux, JSON output, semantic
+exit codes, SwiftBar integration, and an npm package published with provenance.
+MIT.
+
+https://github.com/worsher/portmarshal

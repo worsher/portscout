@@ -10,7 +10,7 @@
 分类：Tooling / Ecosystem
 
 ```markdown
-- [portscout](https://github.com/worsher/portscout) - Port recon & guarded orchestration for multi-agent local dev: attributes every listening port to its project and launching agent, reserves ports idempotently, and blocks agents from killing each other's dev servers. Three-line CLAUDE.md integration.
+- [PortMarshal](https://github.com/worsher/portmarshal) - Agent-aware ownership and guarded orchestration for local dev services: attributes visible listeners to projects and coding agents, coordinates sticky port claims, and blocks cross-agent stops by default.
 ```
 
 ### 2. awesome-mac（jaywcjlove/awesome-mac）
@@ -18,7 +18,7 @@
 分类：Developer Tools → Command Line Tools
 
 ```markdown
-- [portscout](https://github.com/worsher/portscout) - Attribute every listening port to its project and launching app/agent; guarded stop, port reservation, SwiftBar menu-bar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portscout)
+- [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev listeners to their project and launching agent; guarded stop, sticky claims, and a SwiftBar menu-bar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portmarshal)
 ```
 
 ### 3. awesome-cli-apps（agarrharr/awesome-cli-apps）
@@ -26,16 +26,16 @@
 分类：Development / Productivity
 
 ```markdown
-- [portscout](https://github.com/worsher/portscout) - Find out which port belongs to which project, started by which agent; reserve ports and stop services behind a safety guard.
+- [PortMarshal](https://github.com/worsher/portmarshal) - Find which project and coding agent owns a local port, coordinate sticky claims, and stop services behind an ownership guard.
 ```
 
 ### 4. SwiftBar 插件仓库（swiftbar/plugin-repository）
 
-按其插件提交规范提交 `portscout.5s.sh` 包装脚本 + 截图；描述：
+按其插件提交规范提交 `portmarshal.5s.sh` 包装脚本 + 截图；描述：
 
 ```
 Live view of every dev server on your machine — port, project, launching
-agent — with click-to-stop behind a confirm dialog. Powered by portscout.
+agent — with click-to-stop behind a confirm dialog. Powered by PortMarshal.
 ```
 
 ## 提交命令模板
@@ -44,7 +44,7 @@ agent — with click-to-stop behind a confirm dialog. Powered by portscout.
 gh repo fork <owner>/<repo> --clone
 cd <repo>
 # 编辑 README.md 插入条目（字母序）
-git checkout -b add-portscout
-git commit -am "Add portscout"
-gh pr create --title "Add portscout" --body "Adds portscout: port attribution & guarded orchestration for multi-agent local development. https://github.com/worsher/portscout"
+git checkout -b add-portmarshal
+git commit -am "Add portmarshal"
+gh pr create --title "Add portmarshal" --body "Adds portmarshal: port attribution & guarded orchestration for multi-agent local development. https://github.com/worsher/portmarshal"
 ```

@@ -1,13 +1,13 @@
 {
-  "name": "@worsher/portscout",
-  "version": "0.2.0",
+  "name": "@worsher/portmarshal",
+  "version": "0.3.0",
   "publishConfig": {
     "access": "public"
   },
-  "description": "本机端口服务侦察与调度，防多 agent 端口冲突 — port recon & guarded orchestration for multi-agent local dev",
+  "description": "Agent-aware port ownership and guarded orchestration for multi-agent local development",
   "type": "module",
   "bin": {
-    "portscout": "dist/cli.js"
+    "portmarshal": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -17,17 +17,19 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/worsher/portscout.git"
+    "url": "git+https://github.com/worsher/portmarshal.git"
   },
   "keywords": [
     "port",
     "port-management",
     "dev-server",
     "ai-agent",
+    "coding-agent",
     "claude-code",
     "cursor",
     "lsof",
     "macos",
+    "linux",
     "swiftbar"
   ],
   "os": [

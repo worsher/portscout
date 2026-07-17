@@ -18,7 +18,7 @@ export interface ProcessInfo {
   cwd: string | null;
   /** 从命令行参数推断的项目路径（cwd 失真时的兜底） */
   inferredProject: string | null;
-  source: string; // "claude-code" | "cursor" | "antigravity" | "vscode/electron" | "terminal" | "docker" | "orphan" | "?"
+  source: string; // "claude-code" | "cursor" | "antigravity" | "vscode/electron" | "terminal" | "docker" | "detached" | "?"
 }
 
 export interface RegistryEntry {

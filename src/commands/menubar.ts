@@ -14,34 +14,34 @@ function safeParam(s: string): string {
 }
 
 export function renderMenubar(entries: MergedEntry[], binPath: string): string {
-  const bad = entries.filter((e) => e.state === "drift" || e.proc?.source === "orphan").length;
+  const bad = entries.filter((e) => e.state === "drift" || e.proc?.source === "detached").length;
   const lines: string[] = [];
   lines.push(bad > 0 ? `⚓${entries.length} ⚠${bad} | color=orange` : `⚓${entries.length}`);
   lines.push("---");
   if (entries.length === 0) {
-    lines.push("没有监听中的开发服务 | color=gray");
+    lines.push("No listening development services | color=gray");
   }
   for (const e of entries) {
     const proj = e.proc ? resolveProjectDir(e.proc) : e.reg?.project;
     const projName = proj ? path.basename(proj) : "?";
-    const src = e.proc?.source ?? "预留";
-    const isOrphan = e.proc?.source === "orphan";
-    const mark = e.state === "drift" ? "⚠ " : isOrphan ? "⚠ " : "";
-    const suffix = isOrphan || e.state === "drift" ? " | color=orange" : "";
-    const label = isOrphan ? "孤儿服务" : src;
+    const src = e.proc?.source ?? "reserved";
+    const isDetached = e.proc?.source === "detached";
+    const mark = e.state === "drift" ? "⚠ " : isDetached ? "⚠ " : "";
+    const suffix = isDetached || e.state === "drift" ? " | color=orange" : "";
+    const label = isDetached ? "detached" : src;
     lines.push(`${mark}${e.port} ${projName} · ${label}${suffix}`);
-    const stopLabel = e.proc && !isOrphan && e.state !== "drift" ? `停止服务…（${src} 正在使用）` : "停止服务";
+    const stopLabel = e.proc && !isDetached && e.state !== "drift" ? `Stop service… (${src} is active)` : "Stop service";
     if (e.proc) {
       lines.push(`-- ${stopLabel} | bash="${safeParam(binPath)}" param1=stop param2=${e.port} param3=--gui terminal=false refresh=true`);
-      lines.push(`-- 复制 http://localhost:${e.port} | bash=/bin/bash param1=-c param2="echo -n 'http://localhost:${e.port}' | pbcopy" terminal=false`);
+      lines.push(`-- Copy http://localhost:${e.port} | bash=/bin/bash param1=-c param2="echo -n 'http://localhost:${e.port}' | pbcopy" terminal=false`);
     }
     if (proj) {
-      lines.push(`-- 在 Finder 中打开项目目录 | bash=/usr/bin/open param1="${safeParam(proj)}" terminal=false`);
+      lines.push(`-- Open project in Finder | bash=/usr/bin/open param1="${safeParam(proj)}" terminal=false`);
     }
   }
   lines.push("---");
-  lines.push(`清理全部孤儿 (gc) | bash="${safeParam(binPath)}" param1=gc param2=--kill-orphans terminal=false refresh=true`);
-  lines.push("刷新 | refresh=true");
+  lines.push(`Clean detached services (gc) | bash="${safeParam(binPath)}" param1=gc param2=--kill-detached terminal=false refresh=true`);
+  lines.push("Refresh | refresh=true");
   return lines.join("\n") + "\n";
 }
 
@@ -56,21 +56,22 @@ async function swiftBarPluginDir(): Promise<string | null> {
 async function install(binPath: string): Promise<number> {
   if (process.platform !== "darwin") {
     process.stderr.write(
-      "menubar --install 仅支持 macOS（SwiftBar）。Linux 上可将 `portscout menubar` 的输出接入兼容 xbar 协议的工具（如 GNOME Argos）：\n" +
-      "  ln -s \"" + binPath + "\" ~/.config/argos/portscout.5s+.sh\n",
+      "menubar --install requires macOS and SwiftBar. On Linux, wire `portmarshal menubar` into an xbar-compatible host such as GNOME Argos:\n" +
+      "  ln -s \"" + binPath + "\" ~/.config/argos/portmarshal.5s+.sh\n",
     );
     return EXIT.ERR;
   }
   const dir = await swiftBarPluginDir();
   if (!dir) {
     process.stderr.write(
-      "未检测到 SwiftBar 配置。请先安装：brew install swiftbar 并启动一次；\n或手动把以下脚本放入插件目录（命名 portscout.5s.sh）：\n\n#!/bin/bash\nexec \"" + binPath + "\" menubar\n",
+      "SwiftBar is not configured. Run `brew install swiftbar`, launch it once, then retry;\n" +
+      "or save this script as portmarshal.5s.sh in the SwiftBar plugin directory:\n\n#!/bin/bash\nexec \"" + binPath + "\" menubar\n",
     );
     return EXIT.ERR;
   }
-  const plugin = path.join(dir, "portscout.5s.sh");
+  const plugin = path.join(dir, "portmarshal.5s.sh");
   await fs.writeFile(plugin, `#!/bin/bash\nexec "${binPath}" menubar\n`, { mode: 0o755 });
-  process.stderr.write(`已安装 SwiftBar 插件：${plugin}\n`);
+  process.stderr.write(`Installed SwiftBar plugin: ${plugin}\n`);
   return EXIT.OK;
 }
 

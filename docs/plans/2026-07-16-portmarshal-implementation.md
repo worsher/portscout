@@ -1,14 +1,16 @@
-# portscout 实施计划
+# PortMarshal 初始实施计划（历史快照）
+
+> 本文保留 v0.1.0 的任务拆分与当时代码草案，仅用于追溯实现过程。当前命令、来源标签和安全语义以 README、设计文档与 `src/` 为准；v0.3.0 已将 `orphan` 更正为 `detached`，并支持 Linux。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 实现 portscout CLI——本机端口服务扫描归属、幂等预留、带护栏停止，含终端 watch 与 SwiftBar 菜单栏两种监视形态。
+**Goal:** 实现 portmarshal CLI——本机端口服务扫描归属、幂等预留、带护栏停止，含终端 watch 与 SwiftBar 菜单栏两种监视形态。
 
 **Architecture:** 单一归属引擎（lsof/ps 解析 → cwd/父链反查）+ 注册表（JSON + mkdir 锁），命令层是薄壳，渲染分表格 / JSON / TUI / SwiftBar 协议四种。核心逻辑全部为可注入依赖的纯函数/类，单测不碰真实系统命令。
 
 **Tech Stack:** TypeScript (ESM, strict) · Node ≥ 18 · 零运行时依赖 · devDeps: typescript / tsx / @types/node · 测试用 node:test（tsx --test 驱动）· 仅 macOS
 
-**Spec:** `docs/specs/2026-07-16-portscout-design.md`（v4，已批准）
+**Spec:** `docs/specs/2026-07-16-portmarshal-design.md`（v4，已批准）
 
 ## Global Constraints
 
@@ -52,11 +54,11 @@ tests/scan.test.ts, registry.test.ts, merge.test.ts, stop.test.ts, menubar.test.
 
 ```json
 {
-  "name": "portscout",
+  "name": "portmarshal",
   "version": "0.1.0",
   "description": "本机端口服务侦察与调度，防多 agent 端口冲突",
   "type": "module",
-  "bin": { "portscout": "dist/cli.js" },
+  "bin": { "portmarshal": "dist/cli.js" },
   "engines": { "node": ">=18.17" },
   "scripts": {
     "build": "tsc",
@@ -196,17 +198,17 @@ export function parseFlags(args: string[]): Flags {
   return f;
 }
 
-const HELP = `portscout — 本机端口服务侦察与调度
+const HELP = `portmarshal — 本机端口服务侦察与调度
 
 用法:
-  portscout list [--json] [--all] [--project <dir|.>]
-  portscout whois <port> [--json]
-  portscout claim <name> [--prefer N] [--range A-B] [--json]
-  portscout release <name>
-  portscout stop <port|name> [--force|--gui] [--json]
-  portscout gc [--kill-orphans]
-  portscout watch
-  portscout menubar [--install]
+  portmarshal list [--json] [--all] [--project <dir|.>]
+  portmarshal whois <port> [--json]
+  portmarshal claim <name> [--prefer N] [--range A-B] [--json]
+  portmarshal release <name>
+  portmarshal stop <port|name> [--force|--gui] [--json]
+  portmarshal gc [--kill-orphans]
+  portmarshal watch
+  portmarshal menubar [--install]
 `;
 
 type CommandFn = (flags: Flags) => Promise<number>;
@@ -229,7 +231,7 @@ async function main(): Promise<number> {
     const mod = await loader();
     return await mod.default(parseFlags(rest));
   } catch (e) {
-    process.stderr.write(`portscout: ${(e as Error).message}\n`);
+    process.stderr.write(`portmarshal: ${(e as Error).message}\n`);
     return EXIT.ERR;
   }
 }
@@ -644,7 +646,7 @@ import { scanListeners, resolveProjectDir } from "../scan.js";
 export default async function whois(flags: Flags): Promise<number> {
   const port = Number(flags.positional[0]);
   if (!Number.isFinite(port)) {
-    process.stderr.write("用法: portscout whois <port>\n");
+    process.stderr.write("用法: portmarshal whois <port>\n");
     return EXIT.ERR;
   }
   const infos = await scanListeners();
@@ -724,7 +726,7 @@ import path from "node:path";
 import { Registry } from "../src/registry.js";
 
 async function tmpRegistry(): Promise<Registry> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "portscout-test-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "portmarshal-test-"));
   return new Registry(dir);
 }
 const alwaysFree = async () => true;
@@ -847,7 +849,7 @@ export class Registry {
   readonly dir: string;
   readonly file: string;
 
-  constructor(dir = path.join(os.homedir(), ".portscout")) {
+  constructor(dir = path.join(os.homedir(), ".portmarshal")) {
     this.dir = dir;
     this.file = path.join(dir, "registry.json");
   }
@@ -858,7 +860,7 @@ export class Registry {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
       await fs.rename(this.file, this.file + ".bak").catch(() => {});
-      process.stderr.write("portscout: 注册表损坏，已备份为 registry.json.bak 并重建\n");
+      process.stderr.write("portmarshal: 注册表损坏，已备份为 registry.json.bak 并重建\n");
       return [];
     }
   }
@@ -1122,7 +1124,7 @@ import { Registry, LockTimeoutError } from "../registry.js";
 export default async function claim(flags: Flags): Promise<number> {
   const name = flags.positional[0];
   if (!name) {
-    process.stderr.write("用法: portscout claim <name> [--prefer N] [--range A-B]\n");
+    process.stderr.write("用法: portmarshal claim <name> [--prefer N] [--range A-B]\n");
     return EXIT.ERR;
   }
   const project = path.resolve(flags.project ?? process.cwd());
@@ -1147,7 +1149,7 @@ export default async function claim(flags: Flags): Promise<number> {
     return EXIT.OK;
   } catch (e) {
     if (e instanceof LockTimeoutError) {
-      process.stderr.write(`portscout: ${e.message}\n`);
+      process.stderr.write(`portmarshal: ${e.message}\n`);
       return EXIT.LOCK_TIMEOUT;
     }
     throw e;
@@ -1167,7 +1169,7 @@ import { isPortFree } from "../registry.js";
 export default async function release(flags: Flags): Promise<number> {
   const name = flags.positional[0];
   if (!name) {
-    process.stderr.write("用法: portscout release <name>\n");
+    process.stderr.write("用法: portmarshal release <name>\n");
     return EXIT.ERR;
   }
   const project = path.resolve(flags.project ?? process.cwd());
@@ -1179,7 +1181,7 @@ export default async function release(flags: Flags): Promise<number> {
   }
   process.stderr.write(`已释放预留 ${name} → ${entry.port}\n`);
   if (!(await isPortFree(entry.port))) {
-    process.stderr.write(`注意：端口 ${entry.port} 上服务仍在运行，release 仅释放预留记录；停止服务请用 portscout stop ${entry.port}\n`);
+    process.stderr.write(`注意：端口 ${entry.port} 上服务仍在运行，release 仅释放预留记录；停止服务请用 portmarshal stop ${entry.port}\n`);
   }
   return EXIT.OK;
 }
@@ -1396,13 +1398,13 @@ function osascript(script: string): Promise<{ ok: boolean }> {
 }
 
 function notify(msg: string): void {
-  void osascript(`display notification ${JSON.stringify(msg)} with title "portscout"`);
+  void osascript(`display notification ${JSON.stringify(msg)} with title "portmarshal"`);
 }
 
 export default async function stop(flags: Flags): Promise<number> {
   const target = flags.positional[0];
   if (!target) {
-    process.stderr.write("用法: portscout stop <port|name> [--force|--gui]\n");
+    process.stderr.write("用法: portmarshal stop <port|name> [--force|--gui]\n");
     return EXIT.ERR;
   }
   const registry = new Registry();
@@ -1433,7 +1435,7 @@ export default async function stop(flags: Flags): Promise<number> {
   if (kind === "foreign" && !flags.force) {
     if (flags.gui) {
       const { ok } = await osascript(
-        `display dialog "端口 ${port} 是 ${proc.source} 在 ${resolveProjectDir(proc) ?? "?"} 的活跃服务，确定停止？" with title "portscout" buttons {"取消","停止"} default button "取消" cancel button "取消" with icon caution`,
+        `display dialog "端口 ${port} 是 ${proc.source} 在 ${resolveProjectDir(proc) ?? "?"} 的活跃服务，确定停止？" with title "portmarshal" buttons {"取消","停止"} default button "取消" cancel button "取消" with icon caution`,
       );
       if (!ok) return EXIT.OK; // 用户取消
     } else {
@@ -1495,7 +1497,7 @@ export default async function gc(flags: Flags): Promise<number> {
     }
   }
   if (!flags.killOrphans) {
-    process.stderr.write(`\n共 ${orphans.length} 个孤儿服务；停止它们请运行 portscout gc --kill-orphans\n`);
+    process.stderr.write(`\n共 ${orphans.length} 个孤儿服务；停止它们请运行 portmarshal gc --kill-orphans\n`);
   }
   return EXIT.OK;
 }
@@ -1515,10 +1517,10 @@ pnpm build
 python3 -m http.server 4568 --directory /tmp & sleep 1
 node dist/cli.js stop 4568; echo "exit=$?"        # 本终端起的：own → 直接停，exit=0
 python3 -m http.server 4568 --directory /tmp & sleep 1
-cd /tmp && node /Users/worsher/code/github/portscout/dist/cli.js stop 4568 --project /nowhere; echo "exit=$?"
+cd /tmp && node /Users/worsher/code/github/portmarshal/dist/cli.js stop 4568 --project /nowhere; echo "exit=$?"
 # 期待：cwd 归属为当前脚本会话（own/foreign 视执行环境），验证 exit=3 时打印归属信息
-node /Users/worsher/code/github/portscout/dist/cli.js stop 4568 --force   # 强制停止收尾
-node /Users/worsher/code/github/portscout/dist/cli.js gc
+node /Users/worsher/code/github/portmarshal/dist/cli.js stop 4568 --force   # 强制停止收尾
+node /Users/worsher/code/github/portmarshal/dist/cli.js gc
 ```
 
 预期：own 目标直接停；foreign 目标 exit=3 且打印归属与 --force 提示；gc 列出孤儿（如 8901）。
@@ -1560,26 +1562,26 @@ function entry(port: number, state: MergedEntry["state"], source = "cursor", cwd
 }
 
 test("renderMenubar 标题含服务数与异常数", () => {
-  const out = renderMenubar([entry(3000, "active"), entry(8901, "unregistered", "orphan")], "/bin/portscout");
+  const out = renderMenubar([entry(3000, "active"), entry(8901, "unregistered", "orphan")], "/bin/portmarshal");
   const title = out.split("\n")[0];
   assert.match(title, /2/);
   assert.match(title, /⚠\s*1/);
 });
 
 test("renderMenubar 服务行带子菜单动作，stop 挂 --gui", () => {
-  const out = renderMenubar([entry(3000, "active")], "/bin/portscout");
-  assert.match(out, /-- 停止服务.*bash="\/bin\/portscout".*param1=stop.*param2=3000.*param3=--gui.*terminal=false.*refresh=true/);
+  const out = renderMenubar([entry(3000, "active")], "/bin/portmarshal");
+  assert.match(out, /-- 停止服务.*bash="\/bin\/portmarshal".*param1=stop.*param2=3000.*param3=--gui.*terminal=false.*refresh=true/);
   assert.match(out, /-- 复制 http:\/\/localhost:3000/);
 });
 
 test("renderMenubar 孤儿行标橙色", () => {
-  const out = renderMenubar([entry(8901, "unregistered", "orphan")], "/bin/portscout");
+  const out = renderMenubar([entry(8901, "unregistered", "orphan")], "/bin/portmarshal");
   const line = out.split("\n").find((l) => l.includes("8901") && !l.startsWith("--"))!;
   assert.match(line, /color=orange/);
 });
 
 test("renderMenubar 无服务时显示空态", () => {
-  const out = renderMenubar([], "/bin/portscout");
+  const out = renderMenubar([], "/bin/portmarshal");
   assert.match(out, /没有监听中的开发服务/);
 });
 ```
@@ -1643,11 +1645,11 @@ async function install(binPath: string): Promise<number> {
   const dir = await swiftBarPluginDir();
   if (!dir) {
     process.stderr.write(
-      "未检测到 SwiftBar 配置。请先安装：brew install swiftbar 并启动一次；\n或手动把以下脚本放入插件目录（命名 portscout.5s.sh）：\n\n#!/bin/bash\nexec \"" + binPath + "\" menubar\n",
+      "未检测到 SwiftBar 配置。请先安装：brew install swiftbar 并启动一次；\n或手动把以下脚本放入插件目录（命名 portmarshal.5s.sh）：\n\n#!/bin/bash\nexec \"" + binPath + "\" menubar\n",
     );
     return EXIT.ERR;
   }
-  const plugin = path.join(dir, "portscout.5s.sh");
+  const plugin = path.join(dir, "portmarshal.5s.sh");
   await fs.writeFile(plugin, `#!/bin/bash\nexec "${binPath}" menubar\n`, { mode: 0o755 });
   process.stderr.write(`已安装 SwiftBar 插件：${plugin}\n`);
   return EXIT.OK;
@@ -1697,7 +1699,7 @@ export function formatWatchFrame(cur: MergedEntry[], prevPorts: Set<number>): st
   });
   const now = new Date().toLocaleTimeString("zh-CN");
   return (
-    `portscout watch  ${C.dim}${now}  按 q 退出${C.reset}\n\n` +
+    `portmarshal watch  ${C.dim}${now}  按 q 退出${C.reset}\n\n` +
     formatTable(["PORT", "状态", "来源", "预留名", "项目目录"], rows) +
     "\n"
   );
@@ -1821,7 +1823,7 @@ async function cli(args: string[]): Promise<{ stdout: string; code: number }> {
 }
 
 before(async () => {
-  projDir = await fs.mkdtemp(path.join(os.tmpdir(), "portscout-smoke-"));
+  projDir = await fs.mkdtemp(path.join(os.tmpdir(), "portmarshal-smoke-"));
   server = spawn("python3", ["-m", "http.server", String(PORT)], { cwd: projDir, stdio: "ignore" });
   await waitListening(PORT);
 });
@@ -1869,14 +1871,14 @@ test("stop --force 能停止服务并且端口释放", async () => {
 pnpm smoke 2>&1 | tail -8
 ```
 
-预期：4 个测试 PASS（注意：本测试使用真实注册表 `~/.portscout`，claim 用例已自行 release 清理）。
+预期：4 个测试 PASS（注意：本测试使用真实注册表 `~/.portmarshal`，claim 用例已自行 release 清理）。
 
 - [ ] **Step 3: 完善 README.md**
 
 用以下内容替换 README（安装、8 命令示例、退出码表、agent 接入、SwiftBar 接入）：
 
 ```markdown
-# portscout
+# portmarshal
 
 本机端口服务的侦察与调度工具，为多 AI agent 并行开发场景设计：回答「哪个端口被谁占、属于哪个项目」，提供带护栏的端口预留与服务停止能力，防止 agent 之间端口冲突与互相误杀。
 
@@ -1884,23 +1886,23 @@ pnpm smoke 2>&1 | tail -8
 
 ```bash
 pnpm install && pnpm build && pnpm link --global
-portscout --help
+portmarshal --help
 ```
 
-菜单栏（可选）：`brew install swiftbar`，启动 SwiftBar 后运行 `portscout menubar --install`。
+菜单栏（可选）：`brew install swiftbar`，启动 SwiftBar 后运行 `portmarshal menubar --install`。
 
 ## 命令
 
 | 命令 | 说明 |
 |---|---|
-| `portscout list [--json] [--all] [--project .]` | 扫描监听端口 → 项目/来源/状态（●正常 ◐预留 ○未注册 ⚠漂移） |
-| `portscout whois <port>` | 单端口归属详情 |
-| `portscout claim <name> [--prefer N] [--range A-B]` | 预留端口（幂等 + 粘性），stdout 仅输出端口号 |
-| `portscout release <name>` | 释放预留（不停进程） |
-| `portscout stop <port\|name> [--force\|--gui]` | 带护栏停止：孤儿/自己的直接停，他人活跃服务拦截 |
-| `portscout gc [--kill-orphans]` | 回收过期预留，列出/停止孤儿服务 |
-| `portscout watch` | 终端实时仪表盘 |
-| `portscout menubar [--install]` | SwiftBar 菜单栏插件 |
+| `portmarshal list [--json] [--all] [--project .]` | 扫描监听端口 → 项目/来源/状态（●正常 ◐预留 ○未注册 ⚠漂移） |
+| `portmarshal whois <port>` | 单端口归属详情 |
+| `portmarshal claim <name> [--prefer N] [--range A-B]` | 预留端口（幂等 + 粘性），stdout 仅输出端口号 |
+| `portmarshal release <name>` | 释放预留（不停进程） |
+| `portmarshal stop <port\|name> [--force\|--gui]` | 带护栏停止：孤儿/自己的直接停，他人活跃服务拦截 |
+| `portmarshal gc [--kill-orphans]` | 回收过期预留，列出/停止孤儿服务 |
+| `portmarshal watch` | 终端实时仪表盘 |
+| `portmarshal menubar [--install]` | SwiftBar 菜单栏插件 |
 
 ## 退出码
 
@@ -1909,14 +1911,14 @@ portscout --help
 ## agent 接入（CLAUDE.md 约定）
 
 ```
-- 启动任何 dev server 前，先 `PORT=$(portscout claim <服务名> --prefer <默认端口>)` 获取端口
-- 找服务/怀疑冲突时，用 `portscout list --project . --json` 看本项目、`portscout whois <端口>` 查归属
-- 端口被占需要处置时用 `portscout stop <端口>`；退出码 3 表示是别人的活跃服务，向用户展示归属并请示，不要 --force
+- 启动任何 dev server 前，先 `PORT=$(portmarshal claim <服务名> --prefer <默认端口>)` 获取端口
+- 找服务/怀疑冲突时，用 `portmarshal list --project . --json` 看本项目、`portmarshal whois <端口>` 查归属
+- 端口被占需要处置时用 `portmarshal stop <端口>`；退出码 3 表示是别人的活跃服务，向用户展示归属并请示，不要 --force
 ```
 
 ## 设计文档
 
-见 [docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md)。macOS · Node ≥ 18 · 零运行时依赖。
+见 [docs/specs/2026-07-16-portmarshal-design.md](docs/specs/2026-07-16-portmarshal-design.md)。macOS · Node ≥ 18 · 零运行时依赖。
 ```
 
 - [ ] **Step 4: 全局 CLAUDE.md 追加约定**
@@ -1925,16 +1927,16 @@ portscout --help
 
 ```markdown
 
-## 端口管理（portscout）
-- 启动任何 dev server 前，先 `PORT=$(portscout claim <服务名> --prefer <默认端口>)` 获取端口
-- 找服务/怀疑冲突时，用 `portscout list --project . --json` 看本项目、`portscout whois <端口>` 查归属
-- 端口被占需要处置时用 `portscout stop <端口>`；退出码 3 表示是别人的活跃服务，向用户展示归属并请示，不要 --force
+## 端口管理（portmarshal）
+- 启动任何 dev server 前，先 `PORT=$(portmarshal claim <服务名> --prefer <默认端口>)` 获取端口
+- 找服务/怀疑冲突时，用 `portmarshal list --project . --json` 看本项目、`portmarshal whois <端口>` 查归属
+- 端口被占需要处置时用 `portmarshal stop <端口>`；退出码 3 表示是别人的活跃服务，向用户展示归属并请示，不要 --force
 ```
 
 - [ ] **Step 5: 全局安装验证**
 
 ```bash
-pnpm link --global && which portscout && portscout list | head -5
+pnpm link --global && which portmarshal && portmarshal list | head -5
 ```
 
 预期：全局命令可用，输出真实端口表。

@@ -14,7 +14,7 @@ export default async function watch(_flags: Flags): Promise<number> {
     const [scan, registry] = await Promise.all([scanListeners(), new Registry().load()]);
     const merged = mergeScanRegistry(scan.filter((p) => !isNoise(p.procName)), registry);
     process.stdout.write(formatWatchFrame(merged, prevPorts));
-    process.stderr.write("watch 需要交互终端才能持续刷新；已输出单帧快照\n");
+    process.stderr.write("watch needs an interactive terminal; rendered one snapshot and exited\n");
     return EXIT.OK;
   }
 

@@ -1,90 +1,106 @@
-# portscout
+# PortMarshal
 
-[![npm](https://img.shields.io/npm/v/@worsher/portscout)](https://www.npmjs.com/package/@worsher/portscout) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@worsher/portmarshal)](https://www.npmjs.com/package/@worsher/portmarshal) [![test](https://github.com/worsher/portmarshal/actions/workflows/test.yml/badge.svg)](https://github.com/worsher/portmarshal/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> Stop your AI coding agents from killing each other's dev servers.
+> Know which coding agent owns a local dev server — and stop the wrong one from being killed.
 
 **English** | [简体中文](README.zh-CN.md)
 
-Port recon & guarded orchestration for multi-agent local development on macOS and Linux. When Claude Code, Cursor, Antigravity and friends all spin up dev servers on one machine, portscout answers *"which port belongs to which project, started by which agent"* — and provides idempotent port reservation plus a three-tier guarded stop so agents don't shoot each other down.
+PortMarshal is an agent-aware ownership and safety layer for local development services on macOS and Linux. It maps attributable TCP listeners to their PID, project directory, and launching agent; coordinates sticky port claims; detects port drift; and blocks one agent from stopping another agent's active service by default.
 
-![demo](docs/demo.gif)
+![PortMarshal demo](docs/demo.gif)
 
 ## Why
 
-Run a few AI coding agents in parallel and you'll hit all three:
+Parallel coding agents create three recurring problems:
 
-- **Silent drift** — an agent claims port 3000, vite finds it taken and quietly moves to 3001; now nothing knows where the service actually lives
-- **Orphans** — sessions end, dev servers linger with no parent process; nobody remembers whose they were
-- **Friendly fire** — agent A kills the port agent B is actively debugging on
+- **Silent drift** — an agent expects port 3000, but the framework silently starts on 3001.
+- **Detached services** — a session exits while its dev server keeps listening.
+- **Friendly fire** — one agent frees a port by stopping another agent's service.
 
-Existing port managers only track services *they* launched. portscout's scanner is zero-intrusion: every listening port on the machine gets attributed — port → PID → project directory (cwd) → launching agent (parent-chain analysis) — whether or not anyone cooperated.
+PortMarshal scans first and coordinates second. Existing listeners do not need to be launched through PortMarshal to be discovered. Cooperative agents gain stable claims and stronger ownership signals, while uncooperative services still appear when the operating system exposes their process metadata.
 
 ## Install
 
 ```bash
-npm install -g @worsher/portscout
-portscout --help
+npm install -g @worsher/portmarshal
+portmarshal --help
 ```
 
-Menu bar (optional, macOS): `brew install swiftbar`, launch it once, then `portscout menubar --install`. On Linux, `portscout menubar` emits xbar-protocol text you can wire into [Argos](https://github.com/p-e-w/argos) (GNOME).
+Requires Node.js 18.17 or newer. The runtime has no npm dependencies.
+
+### Migrating from PortScout
+
+```bash
+npm uninstall -g @worsher/portscout
+npm install -g @worsher/portmarshal
+```
+
+On first use, PortMarshal copies an existing `~/.portscout/registry.json` into `~/.portmarshal/registry.json`, preserving sticky claims without deleting the old data.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `portscout list [--json] [--all] [--project .]` | Scan all listening ports → project / source / state (● active ◐ reserved ○ unregistered ⚠ drift) |
-| `portscout whois <port> [--json]` | Single-port attribution: project dir, full command, launching agent, launchd label + plist |
-| `portscout claim <name> [--prefer N] [--range A-B]` | Reserve a port (idempotent + sticky) — stdout is just the number, so `PORT=$(portscout claim web)` |
-| `portscout release <name>` | Release a reservation (does not stop the process) |
-| `portscout stop <port\|name> [--force\|--gui]` | Guarded stop: orphans & your own services stop directly; other agents' live services are blocked |
-| `portscout gc [--kill-orphans]` | Reap stale reservations; list (optionally kill) true orphans |
-| `portscout watch` | Live terminal dashboard (2s refresh, `q` to quit) |
-| `portscout menubar [--install]` | SwiftBar menu-bar plugin with click-to-stop (guard included) |
+| `portmarshal list [--json] [--all] [--project .]` | List listeners with project, source, and state: active, reserved, unregistered, or drift |
+| `portmarshal whois <port> [--json]` | Inspect one port: PID, project directory, full command, agent or service source |
+| `portmarshal claim <name> [--prefer N] [--range A-B]` | Allocate a cooperative sticky port claim; stdout contains only the port number |
+| `portmarshal release <name>` | Release a claim without stopping its process |
+| `portmarshal stop <port\|name> [--force\|--gui]` | Stop a service behind the ownership guard |
+| `portmarshal gc [--kill-detached]` | Reap stale claims and review or stop detached service candidates |
+| `portmarshal watch` | Refreshing terminal dashboard; press `q` to quit |
+| `portmarshal menubar [--install]` | SwiftBar menu with guarded click-to-stop actions |
 
-## Source attribution
+Typical agent startup:
 
-Every listening port is attributed to its launcher via parent-chain analysis: `claude-code` / `cursor` / `antigravity` / `vscode/electron` / `terminal` / `docker`; `launchd:<label>` (macOS, cross-checked against `launchctl list`) or `systemd:<unit>` (Linux, via `/proc/<pid>/cgroup`) for managed services — so auto-started daemons like an OpenClaw gateway are never mistaken for orphans; `app` for double-forked GUI-app helpers (macOS); `orphan` only for truly abandoned processes — the only category `gc` will touch.
+```bash
+PORT=$(portmarshal claim web --prefer 3000)
+npm run dev -- --port "$PORT"
+```
 
-## The three-tier stop guard
+A claim is a cooperative lease, not an operating-system socket reservation. PortMarshal revalidates a previous claim before reusing it: a port must still be free or be attributable to the same project. There is still an unavoidable handoff window between returning a free port and the application binding it.
 
-| Target | Default behavior |
+## Attribution and safety
+
+PortMarshal follows the process parent chain to identify `claude-code`, `cursor`, `antigravity`, `vscode/electron`, `terminal`, and `docker`. It also recognizes `launchd:<label>` on macOS and `systemd:<unit>` on Linux. A process reparented to PID 1 without a recognized manager is labeled `detached` — this is a review signal, not proof that the process is abandoned.
+
+| Target | Default `stop` behavior |
 |---|---|
-| Orphan (parent exited) | stops immediately |
-| Your own service (caller's project, or your reservation) | stops immediately |
-| **Another agent's live service** | **blocked** — attribution printed, exit code 3; `--force` overrides, `--gui` shows a native confirm dialog |
+| Detached service or a service owned by the caller's project/claim | Stop with SIGTERM, then SIGKILL after 3 seconds if needed |
+| Another active service | Block, print attribution, and exit with code 3 |
 
-Termination is graceful: SIGTERM → 3s wait → SIGKILL, and the registry entry is released afterwards.
+`--force` overrides the guard after review. On macOS, `--gui` asks through a native confirmation dialog.
 
-## Exit codes
-
-`0` ok · `1` error · `2` not found · `3` blocked by guard (needs `--force`) · `4` registry lock timeout (retryable)
+PortMarshal can only attribute listeners whose process metadata is visible to the current user. For example, Linux `ss` output without PID information is not invented or guessed; those rows are omitted.
 
 ## Agent integration
 
-Add three lines to your global `CLAUDE.md` (or Cursor rules):
+Add this policy to `AGENTS.md`, `CLAUDE.md`, or your editor's agent rules:
 
-```
-- Before starting any dev server, get a port via `PORT=$(portscout claim <service> --prefer <default>)`
-- To find services or diagnose conflicts: `portscout list --project . --json`, `portscout whois <port>`
-- To free a port use `portscout stop <port>`; exit code 3 means it's another agent's live service —
-  show the attribution to the user and ask, do not --force
+```text
+- Before starting a dev server, get a port with `PORT=$(portmarshal claim <service> --prefer <default>)`.
+- Diagnose conflicts with `portmarshal list --project . --json` and `portmarshal whois <port> --json`.
+- Stop services with `portmarshal stop <port>`; exit code 3 means another active service owns it, so show the attribution and ask before using --force.
 ```
 
-Uncooperative agents are still covered: their services get scanned and attributed regardless.
+A ready-to-copy Claude Code skill lives in [`integrations/claude-code/skills/portmarshal`](integrations/claude-code/skills/portmarshal).
+
+## How it differs
+
+- [`lsof`](https://man7.org/linux/man-pages/man8/lsof.8.html) and `ss` expose sockets and processes; PortMarshal adds project/agent attribution, claims, drift detection, and stop policy.
+- [Sonar](https://github.com/RasKrebs/sonar) is a broad localhost and Docker management CLI; PortMarshal focuses on cross-agent ownership and guarded actions.
+- [Portless](https://github.com/vercel-labs/portless) launches apps behind stable named local URLs; PortMarshal can inspect services whether or not it launched them. The tools can be used together.
 
 ## Development
 
 ```bash
-pnpm test    # unit tests (pure fixtures, no real system calls)
-pnpm smoke   # end-to-end against a real HTTP server
-pnpm build   # tsc
+pnpm test
+pnpm smoke
+pnpm build
 ```
 
-Releasing: bump `version` in package.json → commit → `git tag v<version> && git push origin v<version>`. GitHub Actions runs the full gate (build + tests + smoke + tag/version consistency) and publishes to npm with provenance.
+GitHub Actions runs build, unit tests, and a real listener smoke test on macOS and Linux. Tagged releases publish to npm with provenance.
 
-Design doc: [docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md) · Changelog: [CHANGELOG.md](CHANGELOG.md)
+Design: [`docs/specs/2026-07-16-portmarshal-design.md`](docs/specs/2026-07-16-portmarshal-design.md) · [Changelog](CHANGELOG.md)
 
-macOS & Linux · Node ≥ 18 · zero runtime dependencies · MIT
-
-Platform internals: macOS uses `lsof`/`launchctl`; Linux uses `ss -tlnp` and reads `/proc/<pid>/{cwd,cgroup}` directly (zero extra forks). `--gui` and `menubar --install` are macOS-only.
+macOS and Linux · Node.js ≥ 18.17 · zero runtime dependencies · MIT

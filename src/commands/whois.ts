@@ -42,14 +42,14 @@ async function findServiceDefinition(source: string): Promise<{ label: string; f
 
 export default async function whois(flags: Flags): Promise<number> {
   const port = Number(flags.positional[0]);
-  if (!Number.isFinite(port)) {
-    process.stderr.write("用法: portscout whois <port>\n");
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    process.stderr.write("Usage: portmarshal whois <port>\n");
     return EXIT.ERR;
   }
   const infos = await scanListeners();
   const hit = infos.find((p) => p.ports.includes(port));
   if (!hit) {
-    process.stderr.write(`端口 ${port} 当前无监听\n`);
+    process.stderr.write(`Nothing is listening on port ${port}\n`);
     return EXIT.NOT_FOUND;
   }
   if (flags.json) {
@@ -57,16 +57,16 @@ export default async function whois(flags: Flags): Promise<number> {
     return EXIT.OK;
   }
   const lines = [
-    `端口:     ${port}`,
+    `Port:     ${port}`,
     `PID:      ${hit.pid}`,
-    `来源:     ${hit.source}`,
-    `项目目录: ${resolveProjectDir(hit) ?? "?"}`,
-    `命令:     ${hit.command}`,
+    `Source:   ${hit.source}`,
+    `Project:  ${resolveProjectDir(hit) ?? "?"}`,
+    `Command:  ${hit.command}`,
   ];
   const svc = await findServiceDefinition(hit.source);
   if (svc) {
-    lines.push(`服务注册: ${svc.label}`);
-    lines.push(`服务定义: ${svc.file ?? "(未在常规服务定义目录找到)"}`);
+    lines.push(`Service:  ${svc.label}`);
+    lines.push(`Unit file:${svc.file ? ` ${svc.file}` : " not found in standard locations"}`);
   }
   process.stdout.write(lines.join("\n") + "\n");
   return EXIT.OK;
