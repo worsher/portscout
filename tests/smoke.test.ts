@@ -40,7 +40,12 @@ async function cli(args: string[]): Promise<{ stdout: string; code: number }> {
 
 before(async () => {
   projDir = await fs.mkdtemp(path.join(os.tmpdir(), "portscout-smoke-"));
-  server = spawn("python3", ["-m", "http.server", String(PORT)], { cwd: projDir, stdio: "ignore" });
+  // 用当前 node 自身起测试服务器，不依赖 CI 环境是否预装 python3
+  server = spawn(
+    process.execPath,
+    ["-e", `require("http").createServer((_q,r)=>r.end("ok")).listen(${PORT},"127.0.0.1")`],
+    { cwd: projDir, stdio: "ignore" },
+  );
   await waitListening(PORT);
 });
 
