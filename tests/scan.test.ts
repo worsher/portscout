@@ -84,7 +84,8 @@ const fakeExec: Exec = async (cmd, args) => {
 };
 
 test("scanListeners 组装 ProcessInfo：去重端口、归属 cwd、来源", async () => {
-  const infos = await scanListeners(fakeExec);
+  // fixture 是 lsof/launchctl 数据，显式指定 darwin 链路（避免依赖测试机平台）
+  const infos = await scanListeners(fakeExec, "darwin");
   const byPid = new Map(infos.map((p) => [p.pid, p]));
   const py = byPid.get(2755)!;
   assert.deepEqual(py.ports, [8901]);
