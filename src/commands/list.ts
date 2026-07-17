@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Flags } from "../cli.js";
 import { EXIT, type MergedEntry } from "../types.js";
-import { scanListeners, isNoise, resolveProjectDir } from "../scan.js";
+import { scanListeners, isNoise, resolveProjectDir, displaySource } from "../scan.js";
 import { mergeScanRegistry } from "../merge.js";
 import { Registry } from "../registry.js";
 import { formatTable, C } from "../render.js";
@@ -36,7 +36,7 @@ export default async function list(flags: Flags): Promise<number> {
     STATE_LABEL[e.state],
     e.proc ? String(e.proc.pid) : "-",
     e.proc
-      ? (e.proc.source === "detached" ? `${C.yellow}detached${C.reset}` : e.proc.source)
+      ? (e.proc.source === "detached" ? `${C.yellow}detached${C.reset}` : displaySource(e.proc))
       : "-",
     e.reg?.name ?? "-",
     (e.proc ? resolveProjectDir(e.proc) : e.reg?.project) ?? "?",

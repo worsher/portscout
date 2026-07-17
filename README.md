@@ -72,10 +72,11 @@ A claim is a cooperative lease, not an operating-system socket reservation. Port
 
 ## Attribution and safety
 
-PortMarshal follows the process parent chain to identify `claude-code`, `cursor`, `antigravity`, `vscode/electron`, `terminal`, and `docker`. It also recognizes `launchd:<label>` on macOS and `systemd:<unit>` on Linux. A process reparented to PID 1 without a recognized manager is labeled `detached` — this is a review signal, not proof that the process is abandoned.
+PortMarshal follows the process parent chain to identify `claude-code`, `cursor`, `antigravity`, `vscode/electron`, `terminal`, and `docker`. For published Docker ports, it also inspects running-container metadata: shared Docker Desktop listeners are split by container, the source is shown as `docker:<compose-project>/<service>`, and the host project directory is recovered from Compose, Dev Container, or bind-mount metadata. If Docker metadata is unavailable, attribution safely falls back to the Docker host process. PortMarshal also recognizes `launchd:<label>` on macOS and `systemd:<unit>` on Linux. A process reparented to PID 1 without a recognized manager is labeled `detached` — this is a review signal, not proof that the process is abandoned.
 
 | Target | Default `stop` behavior |
 |---|---|
+| Docker container owned by the caller's project/claim | Run `docker stop` for that container; never signal the shared Docker backend |
 | Detached service or a service owned by the caller's project/claim | Stop with SIGTERM, then SIGKILL after 3 seconds if needed |
 | Another active service | Block, print attribution, and exit with code 3 |
 

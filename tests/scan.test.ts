@@ -4,10 +4,10 @@ import {
   parseLsofListeners, parsePsTable, traceSource,
   inferProjectFromCommand, isNoise, parseLaunchctlList, parsePsCommands, parseLsofCwds,
   parseSsListeners, parseCgroupServiceUnit,
-  scanListeners, resolveProjectDir,
+  parseDockerInspect, scanListeners, resolveProjectDir, displaySource,
 } from "../src/scan.js";
 import type { Exec } from "../src/exec.js";
-import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS, SS_TLNP, CGROUP_SYSTEMD_SERVICE, CGROUP_USER_SERVICE, CGROUP_SESSION_SCOPE } from "./fixtures.js";
+import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS, SS_TLNP, CGROUP_SYSTEMD_SERVICE, CGROUP_USER_SERVICE, CGROUP_SESSION_SCOPE, DOCKER_INSPECT } from "./fixtures.js";
 
 test("parseLsofListeners 解析机器格式并处理 IPv6", () => {
   const entries = parseLsofListeners(LSOF_FPCN);
@@ -107,6 +107,74 @@ test("resolveProjectDir 优先 cwd，cwd 为根目录时用 inferredProject", ()
     resolveProjectDir({ ...base, cwd: "/", inferredProject: "/x/y" }),
     "/x/y",
   );
+  assert.equal(
+    resolveProjectDir({
+      ...base,
+      cwd: "/Users/w/Library/Containers/com.docker.docker/Data",
+      inferredProject: null,
+      docker: {
+        containerId: "abc",
+        containerName: "web",
+        composeProject: "shop",
+        composeService: "web",
+        projectDir: "/Users/w/code/shop/docker",
+      },
+    }),
+    "/Users/w/code/shop/docker",
+  );
+});
+
+test("parseDockerInspect 解析端口、Compose 目录和 bind mount 目录", () => {
+  const owners = parseDockerInspect(DOCKER_INSPECT);
+  assert.deepEqual(owners, [
+    {
+      containerId: "a".repeat(64),
+      containerName: "shop-web",
+      composeProject: "shop",
+      composeService: "web",
+      projectDir: "/Users/w/code/shop/docker",
+      hostPorts: [3000, 8080],
+    },
+    {
+      containerId: "b".repeat(64),
+      containerName: "api-dev",
+      composeProject: null,
+      composeService: null,
+      projectDir: "/Users/w/code/api",
+      hostPorts: [9090],
+    },
+  ]);
+  assert.deepEqual(parseDockerInspect("not json"), []);
+});
+
+test("scanListeners 将共享 Docker 后端 PID 按容器端口拆分并归属项目", async () => {
+  const dockerExec: Exec = async (cmd, args) => {
+    if (cmd === "lsof" && args.includes("-Fpcn")) {
+      return "p777\nccom.docker.backend\nn*:3000\nn*:8080\nn*:9090\n";
+    }
+    if (cmd === "lsof" && args.includes("cwd")) {
+      return "p777\nfcwd\nn/Users/w/Library/Containers/com.docker.docker/Data\n";
+    }
+    if (cmd === "ps" && args.includes("pid=,ppid=,comm=")) {
+      return "777 1 /Applications/Docker.app/Contents/MacOS/com.docker.backend\n";
+    }
+    if (cmd === "ps" && args.includes("pid=,command=")) {
+      return "777 /Applications/Docker.app/Contents/MacOS/com.docker.backend services\n";
+    }
+    if (cmd === "docker" && args[0] === "ps") return `${"a".repeat(64)}\n${"b".repeat(64)}\n`;
+    if (cmd === "docker" && args[0] === "inspect") return DOCKER_INSPECT;
+    return "";
+  };
+
+  const infos = await scanListeners(dockerExec, "darwin");
+  assert.equal(infos.length, 2);
+  assert.deepEqual(infos[0].ports, [3000, 8080]);
+  assert.equal(infos[0].docker?.containerName, "shop-web");
+  assert.equal(displaySource(infos[0]), "docker:shop/web");
+  assert.equal(resolveProjectDir(infos[0]), "/Users/w/code/shop/docker");
+  assert.deepEqual(infos[1].ports, [9090]);
+  assert.equal(infos[1].docker?.containerName, "api-dev");
+  assert.equal(resolveProjectDir(infos[1]), "/Users/w/code/api");
 });
 
 test("parseLaunchctlList 提取受管服务 pid→label 映射", () => {
