@@ -6,15 +6,14 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance 签名需要 OIDC
 
 jobs:
   test-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -26,16 +25,18 @@ jobs:
   publish:
     needs: test-linux
     runs-on: macos-latest # smoke 测试依赖 lsof/ps/launchctl 真实环境
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing OIDC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: pnpm
 
       - name: 校验 tag 与 package.json 版本一致
         run: |
@@ -54,7 +55,5 @@ jobs:
 
       - run: pnpm smoke
 
-      - name: Publish
-        run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish with npm Trusted Publishing
+        run: npm publish
