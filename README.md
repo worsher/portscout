@@ -72,10 +72,12 @@ portscout stop 3000
 ## 开发
 
 ```bash
-pnpm test    # 单元测试（45 个，纯 fixture，不碰真实系统命令）
+pnpm test    # 单元测试（纯 fixture，不碰真实系统命令）
 pnpm smoke   # 端到端冒烟（起真实 http.server 验证归属/claim/stop 全链路）
 pnpm build   # tsc
 ```
+
+发版：改 `package.json` 的 version → 提交 → `git tag v<版本号> && git push origin v<版本号>`，GitHub Actions 自动跑门禁（build + 单测 + 冒烟 + tag 一致性校验）并发布到 npm（带 provenance）。
 
 设计文档：[docs/specs/2026-07-16-portscout-design.md](docs/specs/2026-07-16-portscout-design.md) · 实施计划：[docs/plans/2026-07-16-portscout-implementation.md](docs/plans/2026-07-16-portscout-implementation.md)
 
