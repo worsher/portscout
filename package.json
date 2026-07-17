@@ -1,6 +1,6 @@
 {
-  "name": "@worsher/portmarshal",
-  "version": "0.3.0",
+  "name": "portmarshal",
+  "version": "0.3.1",
   "publishConfig": {
     "access": "public"
   },
