@@ -1,50 +1,92 @@
-# awesome 列表 PR 计划
+# Awesome-list submission plan
 
-> 每个列表提交前先读它的 CONTRIBUTING（格式/排序/是否要求 star 数），条目按字母序插入对应分类。
-> 建议节奏：一周内分散提交，不要同一天铺开。
+> Re-read each target's current contribution instructions immediately before
+> submitting. Submit one target at a time after PortMarshal has real users; a
+> listing should be a curation request, not the launch strategy itself.
 
-## 目标列表与条目文案
+## 1. awesome-claude-code — wait
 
-### 1. awesome-claude-code（hesreallyhim/awesome-claude-code）
+Repository: `hesreallyhim/awesome-claude-code`
 
-分类：Tooling / Ecosystem
+The project currently says recommendations are temporarily paused. Do not open
+an issue or PR until that notice is removed. When recommendations reopen:
+
+- Use the repository's **Recommend a resource** web form.
+- Do not open a PR and do not use `gh`; the repository explicitly rejects both
+  routes for recommendations.
+- The recommendation must be written and submitted by a human.
+- Use a one-line factual description, not a sales pitch.
+
+Facts to turn into your own description:
+
+```text
+PortMarshal is a local service ownership CLI for Claude Code and other coding
+agents. It attributes visible listeners to projects and launching agents,
+coordinates sticky port claims, and blocks cross-project stops by default.
+```
+
+## 2. awesome-cli-apps — first PR candidate
+
+Repository: `agarrharr/awesome-cli-apps`
+
+Suggested section: `Utilities → Network Utilities`. Confirm the active section
+and alphabetical placement immediately before editing.
 
 ```markdown
-- [PortMarshal](https://github.com/worsher/portmarshal) - Agent-aware ownership and guarded orchestration for local dev services: attributes visible listeners to projects and coding agents, coordinates sticky port claims, and blocks cross-agent stops by default.
+- [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev-server ports to projects and coding agents, coordinate sticky claims, and guard cross-project stops.
 ```
 
-### 2. awesome-mac（jaywcjlove/awesome-mac）
+Keep the PR to one README entry. In the PR body, disclose that you maintain the
+project and explain why it belongs in that section.
 
-分类：Developer Tools → Command Line Tools
+## 3. awesome-mac — second PR candidate
+
+Repository: `jaywcjlove/awesome-mac`
+
+Suggested section: `Developer Tools → Developer Utilities`. It may also fit
+`Utilities → Menu Bar Tools`, but the core product is a CLI and the SwiftBar view
+is optional, so Developer Utilities is the more accurate primary category.
 
 ```markdown
-- [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev listeners to their project and launching agent; guarded stop, sticky claims, and a SwiftBar menu-bar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portmarshal)
+* [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev listeners to their project and launching agent; includes guarded stop, sticky port claims, and an optional SwiftBar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portmarshal) ![Freeware][Freeware Icon]
 ```
 
-### 3. awesome-cli-apps（agarrharr/awesome-cli-apps）
+Follow the repository's exact icon and punctuation style when editing the live
+README. Keep the PR limited to the English list unless its contribution guide
+requires updating the translated list too.
 
-分类：Development / Productivity
+## 4. SwiftBar repository — do not submit now
+
+The old `swiftbar/swiftbar-plugins` repository is archived, and SwiftBar's
+current README points repository-content questions to that archived project.
+Do not prepare a PR against the previously listed `swiftbar/plugin-repository`;
+that target is not current.
+
+The local integration remains useful as a PortMarshal feature. Revisit a public
+plugin submission only when SwiftBar documents an active intake path, or submit
+to the upstream xbar/BitBar repository after confirming that its current rules
+accept a wrapper that depends on an npm-installed CLI.
+
+## PR body template
 
 ```markdown
-- [PortMarshal](https://github.com/worsher/portmarshal) - Find which project and coding agent owns a local port, coordinate sticky claims, and stop services behind an ownership guard.
+## What
+
+Adds PortMarshal, an MIT-licensed CLI for local dev-server attribution, sticky
+port claims, and guarded stops in multi-agent development.
+
+## Disclosure
+
+I maintain this project.
+
+## Verification
+
+- macOS and Linux support
+- installable as `portmarshal` from npm
+- zero runtime npm dependencies
+- repository: https://github.com/worsher/portmarshal
 ```
 
-### 4. SwiftBar 插件仓库（swiftbar/plugin-repository）
-
-按其插件提交规范提交 `portmarshal.5s.sh` 包装脚本 + 截图；描述：
-
-```
-Live view of every dev server on your machine — port, project, launching
-agent — with click-to-stop behind a confirm dialog. Powered by PortMarshal.
-```
-
-## 提交命令模板
-
-```bash
-gh repo fork <owner>/<repo> --clone
-cd <repo>
-# 编辑 README.md 插入条目（字母序）
-git checkout -b add-portmarshal
-git commit -am "Add portmarshal"
-gh pr create --title "Add portmarshal" --body "Adds portmarshal: port attribution & guarded orchestration for multi-agent local development. https://github.com/worsher/portmarshal"
-```
+Do not reuse identical prose across several lists on the same day. Adapt the
+description to the list's audience and respond to maintainer feedback before
+opening the next submission.
