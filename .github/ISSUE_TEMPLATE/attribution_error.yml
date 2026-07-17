@@ -1,0 +1,86 @@
+name: Agent attribution error
+description: Report a listener assigned to the wrong project, agent, or service manager
+title: "[Attribution]: "
+labels:
+  - attribution
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Attribution bugs are easiest to fix with the exact process relationship. Please redact secrets and private arguments, but preserve relevant executable names and parent-process information.
+  - type: input
+    id: version
+    attributes:
+      label: PortMarshal version
+      description: Run `portmarshal --version`.
+      placeholder: 0.3.2
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system version
+      placeholder: macOS 15.5 or Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: port
+    attributes:
+      label: Affected port
+      placeholder: "3000"
+    validations:
+      required: true
+  - type: textarea
+    id: whois-output
+    attributes:
+      label: PortMarshal output
+      description: Paste `portmarshal whois <port> --json`, with sensitive values redacted.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: startup-command
+    attributes:
+      label: How the listener was started
+      description: Include the terminal, editor, coding agent, container, launchd unit, or systemd unit involved.
+      placeholder: Started by Cursor terminal with `npm run dev` from the project root.
+    validations:
+      required: true
+  - type: textarea
+    id: actual-attribution
+    attributes:
+      label: Reported attribution
+      description: What project, source, and state did PortMarshal report?
+    validations:
+      required: true
+  - type: textarea
+    id: expected-attribution
+    attributes:
+      label: Expected attribution
+      description: What should PortMarshal have reported, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: process-context
+    attributes:
+      label: Relevant process context
+      description: Add a redacted process tree, service-manager details, or container context if available.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I confirmed the listener was still active when I captured the output.
+          required: true
+        - label: I removed secrets and unnecessary private information from the report.
+          required: true

@@ -8,6 +8,16 @@
 
 PortMarshal 是面向 macOS 和 Linux 多 Agent 本地开发的服务归属与安全层：把可归属的 TCP 监听映射到 PID、项目目录和启动 Agent，提供粘性端口 claim、端口漂移检测，以及默认阻止一个 Agent 停掉另一个 Agent 活跃服务的护栏。
 
+## 30 秒上手
+
+```bash
+npm install -g portmarshal
+portmarshal list
+portmarshal whois 3000
+```
+
+最后一条命令会显示已经监听 3000 端口的开发服务对应的进程、项目和启动 Agent。
+
 ![PortMarshal 演示](docs/demo.gif)
 
 ## 安装
