@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-07-17
+
+- Migrate npm releases to GitHub OIDC Trusted Publishing with automatic provenance
+- Remove the workflow dependency on a long-lived npm write token and limit `id-token: write` to the publish job
+- Update release Actions and run the publish job on Node.js 24
+
 ## 0.3.1 — 2026-07-17
 
 - Publish the canonical package without an npm scope: install with `npm install -g portmarshal`
