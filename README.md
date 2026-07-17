@@ -43,6 +43,10 @@ portscout list --project . --json
 portscout stop 3000
 ```
 
+## 来源识别
+
+每个监听端口会被归属到启动来源：`claude-code` / `cursor` / `antigravity` / `vscode/electron` / `terminal` / `docker`（父进程链识别）；`launchd`（launchd 受管的自启动服务，如 LaunchAgent/登录项，通过 `launchctl list` 交叉验证）；`app`（/Applications 下 GUI 应用的后台进程）；`orphan`（父进程已退出的真孤儿——只有这类会被 `gc` 列出）。
+
 ## 三级停止护栏
 
 | 目标服务 | 默认行为 |

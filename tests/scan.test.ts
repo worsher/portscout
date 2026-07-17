@@ -2,11 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseLsofListeners, parsePsTable, traceSource,
-  inferProjectFromCommand, isNoise,
+  inferProjectFromCommand, isNoise, parseLaunchctlList,
   scanListeners, resolveProjectDir,
 } from "../src/scan.js";
 import type { Exec } from "../src/exec.js";
-import { LSOF_FPCN, PS_TABLE } from "./fixtures.js";
+import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST } from "./fixtures.js";
 
 test("parseLsofListeners 解析机器格式并处理 IPv6", () => {
   const entries = parseLsofListeners(LSOF_FPCN);
@@ -109,4 +109,26 @@ test("resolveProjectDir 优先 cwd，cwd 为根目录时用 inferredProject", ()
     resolveProjectDir({ ...base, cwd: "/", inferredProject: "/x/y" }),
     "/x/y",
   );
+});
+
+test("parseLaunchctlList 提取受管服务 pid 集合", () => {
+  const pids = parseLaunchctlList(LAUNCHCTL_LIST);
+  assert.equal(pids.has(1513), true);
+  assert.equal(pids.has(12000), true);
+  assert.equal(pids.size, 2); // "-" 行不计
+});
+
+test("traceSource 三层判定：launchd 受管 / .app 兜底 / 真孤儿", () => {
+  const table = parsePsTable(PS_TABLE);
+  const launchd = new Set([12000]);
+  // launchd 受管服务（OpenClaw gateway 场景）
+  assert.equal(traceSource(12000, table, launchd), "launchd");
+  // 其子进程沿链归属到受管链根
+  assert.equal(traceSource(14000, table, launchd), "launchd");
+  // 不受管但链根在 .app bundle 内（双 fork 自愿孤儿）
+  assert.equal(traceSource(13000, table, launchd), "app");
+  // 真孤儿：不受管、非 .app（原有 2755 Python）
+  assert.equal(traceSource(2755, table, launchd), "orphan");
+  // 不传 launchd 集合时向后兼容——但 .app 兜底仍生效
+  assert.equal(traceSource(2755, table), "orphan");
 });

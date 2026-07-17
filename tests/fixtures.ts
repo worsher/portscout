@@ -31,4 +31,14 @@ export const PS_TABLE = `    1     0 /sbin/launchd
 10123  1010 /usr/local/bin/python3
  1100     1 /Applications/Docker.app/Contents/MacOS/com.docker.backend
 11123  1100 docker-proxy
+12000     1 /Users/worsher/.openclaw/bin/openclaw-gateway
+14000 12000 /usr/local/bin/node
+13000     1 /Applications/Postman.app/Contents/MacOS/Postman
+`;
+
+/** launchctl list 样本：PID\tStatus\tLabel，"-" 表示未运行 */
+export const LAUNCHCTL_LIST = `PID	Status	Label
+-	0	com.apple.SafariHistoryServiceAgent
+1513	0	com.apple.Finder
+12000	0	com.openclaw.gateway
 `;
