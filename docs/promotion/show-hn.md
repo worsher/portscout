@@ -1,40 +1,64 @@
-# Show HN draft
+# Show HN submission kit
 
-> Post with the GitHub repository URL. Stay available for the first two hours to answer technical questions.
+> HN asks people not to post generated or AI-edited comments. Treat the notes
+> below as a fact check, then write the first comment yourself in your own
+> voice. Do not paste this file as the comment.
 
-## Title
+## Submission fields
 
-Show HN: PortMarshal – An ownership and kill guard for dev servers started by coding agents
+- **Title:** `Show HN: PortMarshal – Guard dev servers from cross-agent stops`
+- **URL:** `https://github.com/worsher/portmarshal`
+- **Text field:** leave empty
 
-## Text
+The title is under HN's 80-character submission limit. Submit the repository as
+the URL, then add a normal first comment; a text-only submission would make the
+project harder to try.
 
-Running Claude Code, Cursor, and other coding agents in parallel on one machine
-kept producing the same three problems: frameworks silently drifting to a new
-port, dev servers surviving after their session exited, and one agent killing a
-service another agent was actively debugging.
+## Facts for the first comment
 
-PortMarshal is a small CLI that treats this as an ownership and policy problem.
-It scans visible TCP listeners without requiring them to be launched through the
-tool, then maps port → PID → project directory → launching agent through parent-
-chain analysis. launchd and systemd metadata keep managed services distinct from
-processes that merely detached from their original session.
+Use only the points that matter to your own story:
 
-Cooperative agents can request a sticky port claim with:
+- You built PortMarshal after parallel coding-agent sessions repeatedly caused
+  silent port drift, detached dev servers, and one session stopping another
+  session's active service.
+- It scans existing TCP listeners; a process does not have to be launched
+  through PortMarshal first.
+- Attribution follows port → PID → project directory → process parent chain and
+  recognizes Claude Code, Cursor, terminal apps, Docker, launchd, and systemd.
+- `portmarshal stop` blocks a service attributed to another active project by
+  default. The explicit `--force` flag is the escape hatch.
+- Cooperative agents can use
+  `PORT=$(portmarshal claim web --prefer 3000)` for a sticky claim.
+- A claim is not an OS socket reservation. PortMarshal revalidates it before
+  reuse, but there is still a handoff window before the app binds the port.
+- `detached` means the process left its original session; it does not prove that
+  the process is abandoned.
+- Linux listeners without visible PID metadata are omitted instead of guessed.
+- It is an MIT-licensed TypeScript CLI for macOS and Linux, has zero runtime npm
+  dependencies, JSON output, semantic exit codes, and an optional SwiftBar view.
+- The CLI makes no network or telemetry requests while running.
 
-    PORT=$(portmarshal claim web --prefer 3000)
+## Useful technical details to explain
 
-Before reusing a claim, PortMarshal confirms the port is still free or still
-belongs to the same project. `portmarshal stop` applies a three-tier guard:
-services owned by the caller and reviewed detached services can be stopped,
-while another active service is blocked with attribution and exit code 3 unless
-the user explicitly supplies `--force`.
+- Why process ancestry alone is insufficient after reparenting, and why
+  launchd/systemd labels are checked separately.
+- Why PortMarshal composes OS inspection with an ownership policy instead of
+  replacing `lsof` or `ss`.
+- Why a cooperative claim cannot close the allocation-to-bind race without
+  becoming the socket owner or a proxy.
+- Why the default guard is intentionally bypassable after the user reviews the
+  attribution.
 
-The scanner is intentionally honest about its limits: Linux listeners without
-visible PID metadata are omitted, and `detached` is a review signal rather than
-a claim that a process is definitely abandoned.
+## Feedback worth asking for
 
-TypeScript, zero runtime dependencies, macOS and Linux, JSON output, semantic
-exit codes, SwiftBar integration, and an npm package published with provenance.
-MIT.
+- Linux distributions or process layouts where attribution is incomplete.
+- Coding agents or terminal environments that need a source signature.
+- Whether detached services should require a stricter default confirmation.
+- Real multi-agent workflows where a lease or proxy model would be preferable.
 
-https://github.com/worsher/portmarshal
+## Posting rules
+
+- Post only when you can personally answer questions for the next two hours.
+- Do not ask anyone to upvote, comment, or submit the project.
+- Do not delete and repost if the first submission is quiet.
+- Answer limitations directly; do not turn the thread into a feature list.
