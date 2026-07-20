@@ -110,3 +110,28 @@ export const DOCKER_INSPECT = JSON.stringify([
     ],
   },
 ]);
+
+/** pm2 jlist 的精简样本：包含运行中应用、停止应用，以及不得进入扫描结果的敏感 env。 */
+export const PM2_JLIST = JSON.stringify([
+  {
+    pid: 15010,
+    name: "api",
+    pm_id: 2,
+    pm2_env: {
+      status: "online",
+      pm_cwd: "/Users/w/code/api",
+      pm_exec_path: "/Users/w/code/api/dist/server.js",
+      SECRET_TOKEN: "must-not-leak",
+    },
+  },
+  {
+    pid: 0,
+    name: "stopped-app",
+    pm_id: 3,
+    pm2_env: {
+      status: "stopped",
+      pm_cwd: "/Users/w/code/stopped",
+      pm_exec_path: "/Users/w/code/stopped/server.js",
+    },
+  },
+]);

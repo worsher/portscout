@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { DockerInfo, ListenEntry, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
+import type { DockerInfo, ListenEntry, Pm2Info, ProcessInfo, PsRow, RegistryEntry } from "./types.js";
 import { realExec, type Exec } from "./exec.js";
 
 export function parseLsofListeners(text: string): ListenEntry[] {
@@ -38,6 +38,7 @@ const SOURCE_PATTERNS: Array<[RegExp, string]> = [
   [/antigrav/i, "antigravity"],
   [/code helper|vscode|electron/i, "vscode/electron"],
   [/iterm|^terminal$|warp|kitty|alacritty|wezterm|tmux/i, "terminal"],
+  [/^PM2(?:\s|$)/i, "pm2"],
   [/docker/i, "docker"],
 ];
 
@@ -119,16 +120,18 @@ export async function linuxServiceLabels(
 export function traceSource(pid: number, table: Map<number, PsRow>, managedServices?: Map<number, string>): string {
   let cur = table.get(pid);
   if (!cur) return "?";
+  let managedFallback: string | null = null;
   for (let depth = 0; cur && depth < 20; depth++) {
     // Linux 的 cgroup 标签挂在实际监听 pid 上；macOS 的 launchctl 标签通常挂在链根。
-    // 每一层都检查，才能同时覆盖 systemd 子进程和 launchd 直接/间接子进程。
+    // 先记作兜底并继续走父链，让 PM2/Docker/Agent 等更具体的来源优先于通用进程管理器。
     const managedLabel = managedServices?.get(cur.pid);
-    if (managedLabel) return managedLabel;
+    if (managedLabel && !managedFallback) managedFallback = managedLabel;
     const base = cur.comm.split("/").pop() ?? cur.comm;
     for (const [re, label] of SOURCE_PATTERNS) {
       if (re.test(base)) return label;
     }
     if (cur.ppid === 1) {
+      if (managedFallback) return managedFallback;
       // ppid=1 有三种可能，最后一种只能确认已脱离会话：
       // 1) 受管服务（macOS launchd / Linux systemd）——map 值即完整标签（launchd:xxx / systemd:xxx）
       // 2) 双 fork 自愿 daemon 化的 GUI 应用后台进程——仅认 /Applications 安装位置，
@@ -141,7 +144,7 @@ export function traceSource(pid: number, table: Map<number, PsRow>, managedServi
     if (cur.ppid <= 0) return "?";
     cur = table.get(cur.ppid);
   }
-  return "?";
+  return managedFallback ?? "?";
 }
 
 /** ps -axo pid=,command= 全表输出 → pid→完整命令行 映射（一次调用替代 per-pid 查询） */
@@ -302,6 +305,72 @@ export async function dockerPortOwners(exec: Exec = realExec): Promise<DockerPor
   return parseDockerInspect(await exec("docker", ["inspect", ...ids]));
 }
 
+interface Pm2JlistEntry {
+  pid?: unknown;
+  name?: unknown;
+  pm_id?: unknown;
+  pm2_env?: unknown;
+}
+
+export interface Pm2ProcessOwner extends Pm2Info {
+  pid: number;
+}
+
+/** pm2 jlist JSON → 运行中 PID 的安全归属信息；明确丢弃完整 env，避免把 secret 带入扫描结果。 */
+export function parsePm2Jlist(text: string): Pm2ProcessOwner[] {
+  let entries: unknown;
+  try {
+    entries = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(entries)) return [];
+
+  const owners: Pm2ProcessOwner[] = [];
+  for (const raw of entries) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Pm2JlistEntry;
+    const pid = Number(entry.pid);
+    const pmId = Number(entry.pm_id);
+    const name = typeof entry.name === "string" ? entry.name.trim() : "";
+    if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(pmId) || pmId < 0 || !name) continue;
+    const env = stringRecord(entry.pm2_env);
+    const script = absolutePath(env.pm_exec_path);
+    let projectDir = absolutePath(env.pm_cwd);
+    if ((!projectDir || projectDir === path.parse(projectDir).root) && script) projectDir = path.dirname(script);
+    owners.push({
+      pid,
+      pmId,
+      name,
+      status: env.status ?? null,
+      projectDir,
+      script,
+    });
+  }
+  return owners;
+}
+
+/** 仅在父链识别到 PM2 时查询一次当前用户的 PM2 daemon。 */
+export async function pm2ProcessOwners(exec: Exec = realExec): Promise<Pm2ProcessOwner[]> {
+  return parsePm2Jlist(await exec("pm2", ["jlist"]));
+}
+
+function findPm2Owner(
+  pid: number,
+  table: Map<number, PsRow>,
+  ownersByPid: Map<number, Pm2ProcessOwner>,
+): Pm2ProcessOwner | null {
+  let cur = pid;
+  for (let depth = 0; depth < 20 && cur > 0; depth++) {
+    const owner = ownersByPid.get(cur);
+    if (owner) return owner;
+    const row = table.get(cur);
+    if (!row || row.ppid === cur) break;
+    cur = row.ppid;
+  }
+  return null;
+}
+
 /** cwd 失真兜底：从命令行第一个含 node_modules 或以 / 开头的脚本参数推断项目根 */
 export function inferProjectFromCommand(command: string): string | null {
   for (const tok of command.split(/\s+/)) {
@@ -365,15 +434,32 @@ export async function scanListeners(exec: Exec = realExec, platform: NodeJS.Plat
       source: traceSource(pid, table, managedServices),
     };
   });
-  const dockerPorts = baseInfos.some((info) => info.source === "docker")
-    ? await dockerPortOwners(exec)
-    : [];
+  const [dockerPorts, pm2Owners] = await Promise.all([
+    baseInfos.some((info) => info.source === "docker") ? dockerPortOwners(exec) : [],
+    baseInfos.some((info) => info.source === "pm2") ? pm2ProcessOwners(exec) : [],
+  ]);
+  const pm2OwnersByPid = new Map(pm2Owners.map((owner) => [owner.pid, owner]));
+  const managedInfos = baseInfos.map((info): ProcessInfo => {
+    if (info.source !== "pm2") return info;
+    const owner = findPm2Owner(info.pid, table, pm2OwnersByPid);
+    if (!owner) return info;
+    return {
+      ...info,
+      pm2: {
+        pmId: owner.pmId,
+        name: owner.name,
+        status: owner.status,
+        projectDir: owner.projectDir,
+        script: owner.script,
+      },
+    };
+  });
   const ownersByPort = new Map<number, DockerPortOwner>();
   for (const owner of dockerPorts) {
     for (const port of owner.hostPorts) ownersByPort.set(port, owner);
   }
 
-  const infos = baseInfos.flatMap((info): ProcessInfo[] => {
+  const infos = managedInfos.flatMap((info): ProcessInfo[] => {
     if (info.source !== "docker" || !ownersByPort.size) return [info];
     const grouped = new Map<DockerPortOwner | null, number[]>();
     for (const port of info.ports) {
@@ -400,12 +486,14 @@ export async function scanListeners(exec: Exec = realExec, platform: NodeJS.Plat
 }
 
 export function resolveProjectDir(p: Omit<ProcessInfo, "cwd" | "inferredProject"> & { cwd: string | null; inferredProject: string | null }): string | null {
+  if (p.pm2?.projectDir) return p.pm2.projectDir;
   if (p.docker?.projectDir) return p.docker.projectDir;
   if (p.cwd && p.cwd !== "/" && !p.cwd.startsWith("/System")) return p.cwd;
   return p.inferredProject ?? p.cwd;
 }
 
 export function displaySource(p: ProcessInfo): string {
+  if (p.pm2) return `pm2:${p.pm2.name}`;
   if (!p.docker) return p.source;
   const owner = p.docker.composeProject && p.docker.composeService
     ? `${p.docker.composeProject}/${p.docker.composeService}`

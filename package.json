@@ -1,6 +1,6 @@
 {
   "name": "portmarshal",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "publishConfig": {
     "access": "public"
   },
@@ -27,6 +27,7 @@
     "coding-agent",
     "claude-code",
     "cursor",
+    "pm2",
     "lsof",
     "macos",
     "linux",

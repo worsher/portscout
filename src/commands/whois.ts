@@ -68,6 +68,11 @@ export default async function whois(flags: Flags): Promise<number> {
     if (hit.docker.composeProject) lines.push(`Compose:  ${hit.docker.composeProject}`);
     if (hit.docker.composeService) lines.push(`Service:  ${hit.docker.composeService}`);
   }
+  if (hit.pm2) {
+    lines.push(`PM2 app:  ${hit.pm2.name} (#${hit.pm2.pmId})`);
+    if (hit.pm2.status) lines.push(`Status:   ${hit.pm2.status}`);
+    if (hit.pm2.script) lines.push(`Script:   ${hit.pm2.script}`);
+  }
   const svc = await findServiceDefinition(hit.source);
   if (svc) {
     lines.push(`Service:  ${svc.label}`);

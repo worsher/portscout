@@ -62,10 +62,11 @@ claim 是协作式租约，不是操作系统级 socket 预留。复用旧 claim
 
 ## 归属与停止护栏
 
-PortMarshal 沿父进程链识别 `claude-code`、`cursor`、`antigravity`、`vscode/electron`、`terminal` 和 `docker`。对于已发布到宿主机的 Docker 端口，它还会读取运行中容器的元数据：把 Docker Desktop 的共享监听按容器拆分，来源显示为 `docker:<compose项目>/<服务>`，并从 Compose、Dev Container 或 bind mount 元数据恢复宿主机项目目录；Docker 元数据不可用时会安全回退到宿主机 Docker 进程。同时识别 macOS 的 `launchd:<label>` 与 Linux 的 `systemd:<unit>`。被重新挂到 PID 1、但无法识别受管服务的进程会标记为 `detached`——这是需要检查的信号，并不等于已经证明它是无主孤儿。
+PortMarshal 沿父进程链识别 `claude-code`、`cursor`、`antigravity`、`vscode/electron`、`terminal`、`docker` 和 `pm2`。PM2 托管的监听会通过 `pm2 jlist` 补全，来源显示为 `pm2:<应用名>`，项目使用应用配置的 cwd；完整 PM2 环境变量不会被保留。对于已发布到宿主机的 Docker 端口，它会读取运行中容器的元数据：把 Docker Desktop 的共享监听按容器拆分，来源显示为 `docker:<compose项目>/<服务>`，并从 Compose、Dev Container 或 bind mount 元数据恢复宿主机项目目录；受管运行时元数据不可用时会安全回退，不伪造归属。同时识别 macOS 的 `launchd:<label>` 与 Linux 的 `systemd:<unit>`。被重新挂到 PID 1、但无法识别受管服务的进程会标记为 `detached`——这是需要检查的信号，并不等于已经证明它是无主孤儿。
 
 | 目标 | `stop` 默认行为 |
 |---|---|
+| 属于调用方项目/claim 的 PM2 应用 | 执行 `pm2 stop <id>`，绝不直接终止会被 PM2 自动拉起的子进程 |
 | 属于调用方项目/claim 的 Docker 容器 | 对对应容器执行 `docker stop`，绝不向共享 Docker 后端发送信号 |
 | detached 服务，或属于调用方项目/claim 的服务 | SIGTERM；3 秒后仍存活则 SIGKILL |
 | 其他活跃服务 | 拦截，显示归属，返回退出码 3 |

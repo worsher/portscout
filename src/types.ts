@@ -19,6 +19,14 @@ export interface DockerInfo {
   projectDir: string | null;
 }
 
+export interface Pm2Info {
+  pmId: number;
+  name: string;
+  status: string | null;
+  projectDir: string | null;
+  script: string | null;
+}
+
 export interface ProcessInfo {
   pid: number;
   ports: number[];
@@ -29,7 +37,9 @@ export interface ProcessInfo {
   inferredProject: string | null;
   /** Docker 端口反查到的容器和宿主机项目元数据 */
   docker?: DockerInfo;
-  source: string; // "claude-code" | "cursor" | "antigravity" | "vscode/electron" | "terminal" | "docker" | "detached" | "?"
+  /** PM2 jlist 反查到的应用元数据（不保留 env，避免泄露 secret） */
+  pm2?: Pm2Info;
+  source: string; // "claude-code" | "cursor" | "antigravity" | "vscode/electron" | "terminal" | "docker" | "pm2" | "detached" | "?"
 }
 
 export interface RegistryEntry {
