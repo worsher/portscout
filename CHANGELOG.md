@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4 — 2026-07-20
+
+- Attribute PM2-managed listeners to `pm2:<app-name>` and the configured application cwd using one conditional `pm2 jlist` query
+- Keep PM2 environment variables out of scan results while exposing only safe application metadata in `whois` and JSON output
+- Stop attributed PM2 targets through `pm2 stop <id>` and refuse to signal managed children when PM2 metadata is unavailable
+
 ## 0.3.3 — 2026-07-17
 
 - Attribute published Docker ports to the actual container, Compose service, and host project directory instead of the shared Docker Desktop backend directory

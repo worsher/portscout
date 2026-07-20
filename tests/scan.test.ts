@@ -4,10 +4,10 @@ import {
   parseLsofListeners, parsePsTable, traceSource,
   inferProjectFromCommand, isNoise, parseLaunchctlList, parsePsCommands, parseLsofCwds,
   parseSsListeners, parseCgroupServiceUnit,
-  parseDockerInspect, scanListeners, resolveProjectDir, displaySource,
+  parseDockerInspect, parsePm2Jlist, scanListeners, resolveProjectDir, displaySource,
 } from "../src/scan.js";
 import type { Exec } from "../src/exec.js";
-import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS, SS_TLNP, CGROUP_SYSTEMD_SERVICE, CGROUP_USER_SERVICE, CGROUP_SESSION_SCOPE, DOCKER_INSPECT } from "./fixtures.js";
+import { LSOF_FPCN, PS_TABLE, LAUNCHCTL_LIST, PS_COMMANDS, LSOF_CWDS, SS_TLNP, CGROUP_SYSTEMD_SERVICE, CGROUP_USER_SERVICE, CGROUP_SESSION_SCOPE, DOCKER_INSPECT, PM2_JLIST } from "./fixtures.js";
 
 test("parseLsofListeners 解析机器格式并处理 IPv6", () => {
   const entries = parseLsofListeners(LSOF_FPCN);
@@ -37,6 +37,20 @@ test("traceSource 识别 claude-code / antigravity / docker", () => {
   assert.equal(traceSource(8123, table), "claude-code");  // node→zsh→claude
   assert.equal(traceSource(9123, table), "antigravity");  // node→Antigravity
   assert.equal(traceSource(11123, table), "docker");      // docker-proxy
+});
+
+test("traceSource 识别 PM2 daemon 的子进程", () => {
+  const table = parsePsTable(`1 0 /sbin/launchd
+15000 1 PM2 v7.0.3: God Daemon
+15010 15000 /usr/local/bin/node
+15020 15010 /usr/local/bin/node
+`);
+  assert.equal(traceSource(15010, table), "pm2");
+  assert.equal(traceSource(15020, table), "pm2");
+  assert.equal(
+    traceSource(15020, table, new Map([[15020, "systemd:pm2-user.service"]])),
+    "pm2",
+  );
 });
 
 test("traceSource 识别 macOS 自带 Terminal.app", () => {
@@ -175,6 +189,47 @@ test("scanListeners 将共享 Docker 后端 PID 按容器端口拆分并归属�
   assert.deepEqual(infos[1].ports, [9090]);
   assert.equal(infos[1].docker?.containerName, "api-dev");
   assert.equal(resolveProjectDir(infos[1]), "/Users/w/code/api");
+});
+
+test("parsePm2Jlist 只保留运行中应用的安全归属字段", () => {
+  const owners = parsePm2Jlist(PM2_JLIST);
+  assert.deepEqual(owners, [{
+    pid: 15010,
+    pmId: 2,
+    name: "api",
+    status: "online",
+    projectDir: "/Users/w/code/api",
+    script: "/Users/w/code/api/dist/server.js",
+  }]);
+  assert.equal(JSON.stringify(owners).includes("must-not-leak"), false);
+  assert.deepEqual(parsePm2Jlist("not json"), []);
+});
+
+test("scanListeners 将 PM2 后代监听进程归属到应用名和 pm_cwd", async () => {
+  let pm2Calls = 0;
+  const pm2Exec: Exec = async (cmd, args) => {
+    if (cmd === "lsof" && args.includes("-Fpcn")) return "p15020\ncnode\nn127.0.0.1:3100\n";
+    if (cmd === "lsof" && args.includes("cwd")) return "p15020\nfcwd\nn/\n";
+    if (cmd === "ps" && args.includes("pid=,ppid=,comm=")) {
+      return "1 0 /sbin/launchd\n15000 1 PM2 v7.0.3: God Daemon\n15010 15000 /usr/local/bin/node\n15020 15010 /usr/local/bin/node\n";
+    }
+    if (cmd === "ps" && args.includes("pid=,command=")) return "15020 node worker.js\n";
+    if (cmd === "pm2") {
+      pm2Calls++;
+      assert.deepEqual(args, ["jlist"]);
+      return PM2_JLIST;
+    }
+    return "";
+  };
+
+  const infos = await scanListeners(pm2Exec, "darwin");
+  assert.equal(infos.length, 1);
+  assert.equal(pm2Calls, 1);
+  assert.equal(infos[0].source, "pm2");
+  assert.equal(infos[0].pm2?.name, "api");
+  assert.equal(infos[0].pm2?.pmId, 2);
+  assert.equal(displaySource(infos[0]), "pm2:api");
+  assert.equal(resolveProjectDir(infos[0]), "/Users/w/code/api");
 });
 
 test("parseLaunchctlList 提取受管服务 pid→label 映射", () => {

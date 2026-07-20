@@ -26,6 +26,12 @@ function stopDockerContainer(containerId: string): Promise<void> {
   });
 }
 
+function stopPm2Process(pmId: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("pm2", ["stop", String(pmId)], { timeout: 20_000 }, (err) => err ? reject(err) : resolve());
+  });
+}
+
 export default async function stop(flags: Flags): Promise<number> {
   const target = flags.positional[0];
   if (!target) {
@@ -68,9 +74,20 @@ export default async function stop(flags: Flags): Promise<number> {
     );
     return EXIT.BLOCKED;
   }
+  // 直接 kill PM2 子进程只会触发自动拉起；必须能定位 pm_id 后再交给 PM2 停止。
+  if (proc.source === "pm2" && !proc.pm2) {
+    process.stderr.write(
+      `Blocked: PM2 application metadata is unavailable for port ${port}; refusing to signal a managed child process\n`,
+    );
+    return EXIT.BLOCKED;
+  }
 
   const kind = classifyTarget(proc, callerCwd, entries);
-  const identity = proc.docker ? `container ${proc.docker.containerName}` : `pid ${proc.pid}`;
+  const identity = proc.pm2
+    ? `PM2 app ${proc.pm2.name} (#${proc.pm2.pmId})`
+    : proc.docker
+      ? `container ${proc.docker.containerName}`
+      : `pid ${proc.pid}`;
   const desc = `${port} (${displaySource(proc)} · ${resolveProjectDir(proc) ?? "?"} · ${identity})`;
 
   if (kind === "foreign" && !flags.force) {
@@ -82,7 +99,7 @@ export default async function stop(flags: Flags): Promise<number> {
       );
       if (!ok) return EXIT.OK; // 用户取消
     } else {
-      const info = { port, pid: proc.pid, source: displaySource(proc), project: resolveProjectDir(proc), command: proc.command, docker: proc.docker };
+      const info = { port, pid: proc.pid, source: displaySource(proc), project: resolveProjectDir(proc), command: proc.command, docker: proc.docker, pm2: proc.pm2 };
       if (flags.json) {
         process.stdout.write(JSON.stringify({ blocked: true, ...info }) + "\n");
       } else {
@@ -92,9 +109,12 @@ export default async function stop(flags: Flags): Promise<number> {
     }
   }
 
-  let how: "term" | "kill" | "gone" | "docker-stop";
+  let how: "term" | "kill" | "gone" | "docker-stop" | "pm2-stop";
   try {
-    if (proc.docker) {
+    if (proc.pm2) {
+      await stopPm2Process(proc.pm2.pmId);
+      how = "pm2-stop";
+    } else if (proc.docker) {
       await stopDockerContainer(proc.docker.containerId);
       how = "docker-stop";
     } else {
