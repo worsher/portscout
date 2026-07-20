@@ -18,6 +18,8 @@ for stars or votes. Recheck each community's live rules before posting.
 
 PortMarshal 会扫描当前可见的 TCP listener，把端口关联到 PID、项目目录和启动来源。已有服务不需要先通过它启动。停止服务时，如果目标属于另一个活跃项目，默认会阻止并显示归属；确认后仍可以显式使用 `--force`。
 
+现在它也能识别常见的托管运行时：Docker Desktop 的共享监听会关联到具体 container、Compose service 和宿主项目，PM2 listener 会显示为 `pm2:<app-name>` 并使用应用配置的 cwd。停止这些目标时分别调用 `docker stop` 或 `pm2 stop`，不会直接 signal 共享 Docker backend 或 PM2 管理的 child process。
+
 快速试用：
 
     npm install -g portmarshal
@@ -35,7 +37,7 @@ PortMarshal 会扫描当前可见的 TCP listener，把端口关联到 PID、项
 
 仓库：https://github.com/worsher/portmarshal
 
-比较想听到真实的多 agent 使用场景，尤其是 Linux 发行版、tmux/终端环境以及归属识别错误的案例。
+比较想听到真实的多 agent 使用场景，尤其是 Linux、tmux、Docker/Compose、PM2 环境以及归属识别错误的案例。
 ```
 
 ## r/ClaudeAI Showcase
@@ -62,6 +64,8 @@ The failure mode I wanted to fix was simple: one session sees port 3000 in use, 
     PORT=$(portmarshal claim web --prefer 3000)
     npm run dev -- --port "$PORT"
 
+Managed runtimes use their own control planes: published Docker ports resolve to the container, Compose service, and host project, while PM2 listeners resolve to `pm2:<app-name>` and the configured application cwd. Stops are delegated to `docker stop` or `pm2 stop` instead of signaling a shared backend or supervised child process.
+
 It supports macOS and Linux, has zero runtime npm dependencies, JSON output, and a copyable Claude Code skill in the repository.
 
 The honest limits: a claim is not an OS socket reservation, `detached` is a review signal rather than proof of an orphan, and Linux listeners without visible PID data are omitted rather than guessed.
@@ -84,13 +88,13 @@ PortMarshal: local port attribution and a kill guard for multi-agent development
 ```markdown
 I'm the maintainer of PortMarshal, an MIT-licensed CLI for inspecting and coordinating local dev-server ports on macOS and Linux.
 
-Unlike a launcher-only approach, it starts by scanning existing listeners. It composes `lsof`/`ss`, process metadata, cwd, parent chains, launchd, and systemd into a port → PID → project → source view. On top of that it adds sticky cooperative claims, drift detection, and a stop policy that blocks cross-project termination by default.
+Unlike a launcher-only approach, it starts by scanning existing listeners. It composes `lsof`/`ss`, process metadata, cwd, parent chains, launchd, systemd, Docker/Compose, and PM2 metadata into a port → PID → project → source view. On top of that it adds sticky cooperative claims, drift detection, and a stop policy that blocks cross-project termination by default.
 
     npm install -g portmarshal
     portmarshal list
     portmarshal whois 3000
 
-The runtime has zero npm dependencies and the commands support JSON output and semantic exit codes. The scanner deliberately omits Linux listeners whose PID metadata is not visible, and a `detached` label means only that the process left its original session.
+Docker and PM2 targets are controlled through `docker stop` and `pm2 stop`; PortMarshal does not signal the shared Docker Desktop backend or a supervised PM2 child. The runtime has zero npm dependencies and the commands support JSON output and semantic exit codes. The scanner deliberately omits Linux listeners whose PID metadata is not visible, and a `detached` label means only that the process left its original session.
 
 Source and demo: https://github.com/worsher/portmarshal
 
@@ -100,7 +104,7 @@ I'm interested in feedback on the Unix process-model choices, especially attribu
 ## X / Bluesky
 
 ```text
-Running multiple coding agents on one machine? PortMarshal maps dev-server ports to projects and agents, detects drift, and blocks cross-agent stops by default.
+Running multiple coding agents? PortMarshal maps dev-server ports to projects, agents, Docker/Compose containers, and PM2 apps; detects drift; and guards cross-project stops.
 
 macOS/Linux · zero runtime deps · MIT
 npm i -g portmarshal
@@ -118,6 +122,8 @@ Parallel coding agents introduced a surprisingly physical coordination problem o
 One session would silently move from 3000 to 3001. Another would leave a dev server behind. A third would free a port by stopping a process that was still being used elsewhere.
 
 I built PortMarshal as a local ownership and safety layer for that workflow. It maps visible TCP listeners to their process, project directory, and launching source; offers sticky cooperative port claims; detects drift; and blocks cross-project stops by default.
+
+Managed services keep their real identity: Docker Desktop ports resolve to the container, Compose service, and host project, while PM2 listeners resolve to the application name and configured cwd. PortMarshal stops them through `docker stop` or `pm2 stop` rather than signaling a shared backend or supervised child.
 
 It is open source under MIT, supports macOS and Linux, has zero runtime npm dependencies, and is installable with:
 

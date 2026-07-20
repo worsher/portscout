@@ -23,10 +23,16 @@ Use only the points that matter to your own story:
   session's active service.
 - It scans existing TCP listeners; a process does not have to be launched
   through PortMarshal first.
-- Attribution follows port → PID → project directory → process parent chain and
-  recognizes Claude Code, Cursor, terminal apps, Docker, launchd, and systemd.
+- Attribution follows port → PID → project directory → process parent chain for
+  Claude Code, Cursor, and terminal apps, then enriches managed services from
+  Docker/Compose, PM2, launchd, and systemd metadata.
+- Shared Docker Desktop listeners are split by container and Compose service;
+  PM2 listeners are shown as `pm2:<app-name>` with the configured application
+  cwd. Full PM2 environment variables are not retained.
 - `portmarshal stop` blocks a service attributed to another active project by
   default. The explicit `--force` flag is the escape hatch.
+- Attributed managed targets are stopped with `docker stop` or `pm2 stop`, not
+  by signaling the shared Docker backend or a supervised PM2 child.
 - Cooperative agents can use
   `PORT=$(portmarshal claim web --prefer 3000)` for a sticky claim.
 - A claim is not an OS socket reservation. PortMarshal revalidates it before
@@ -42,6 +48,8 @@ Use only the points that matter to your own story:
 
 - Why process ancestry alone is insufficient after reparenting, and why
   launchd/systemd labels are checked separately.
+- Why a shared runtime PID is not enough for Docker Desktop or PM2, and why
+  their manager metadata and control commands are used instead.
 - Why PortMarshal composes OS inspection with an ownership policy instead of
   replacing `lsof` or `ss`.
 - Why a cooperative claim cannot close the allocation-to-bind race without
