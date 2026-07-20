@@ -15,15 +15,30 @@ reports, not a one-day star count.
   routes, and PR copy
 - [GitHub Social Preview](../social-preview.png) — 1280×640 share image
 
+## Platform copy map
+
+| Platform | Copy file | Notes |
+|---|---|---|
+| V2EX / 分享创造 | [channel-posts.md — V2EX](channel-posts.md#v2ex--分享创造) | Chinese launch post |
+| Reddit / r/ClaudeAI | [channel-posts.md — r/ClaudeAI](channel-posts.md#rclaudeai-showcase) | Recheck the live Showcase rules |
+| Reddit / r/commandline | [channel-posts.md — r/commandline](channel-posts.md#rcommandline) | Post only if current self-promotion rules allow it |
+| X / Bluesky | [channel-posts.md — X / Bluesky](channel-posts.md#x--bluesky) | Attach the Social Preview when it is clearer than the link card |
+| LinkedIn | [channel-posts.md — LinkedIn](channel-posts.md#linkedin) | Longer builder-story version |
+| Hacker News / Show HN | [show-hn.md](show-hn.md) | Submission fields plus facts; write the first comment in your own voice |
+| awesome-cli-apps / awesome-mac | [awesome-prs.md](awesome-prs.md) | One focused submission at a time |
+| Product Hunt | Not prepared yet | Wait for stronger visual assets and user proof |
+
 ## Canonical links and claims
 
 - Repository: https://github.com/worsher/portmarshal
 - npm: https://www.npmjs.com/package/portmarshal
-- Latest launch-ready release: https://github.com/worsher/portmarshal/releases/tag/v0.3.2
+- Latest launch-ready release: https://github.com/worsher/portmarshal/releases/tag/v0.3.4
 - Install: `npm install -g portmarshal`
 - Platforms: macOS and Linux; Node.js 18.17 or newer
 - License: MIT
 - Runtime npm dependencies: zero
+- Managed-runtime attribution: Docker/Compose containers and PM2 applications,
+  with stops delegated to `docker stop` or `pm2 stop`
 - Positioning: local dev-server ownership and stop safety for parallel coding
   agents
 
@@ -34,8 +49,8 @@ orphan. Do not claim complete attribution when the OS hides process metadata.
 
 | Wave | Channel | Goal | Gate |
 |---|---|---|---|
-| 1 | Show HN | Technical feedback from builders | Write the first comment in your own voice and stay available for two hours |
 | 1 | V2EX / 分享创造 | Chinese developer feedback and macOS/Linux cases | Post at a time when you can reply; do not publish simultaneously with HN |
+| 1 | Show HN | Technical feedback from builders | Post after observing the V2EX launch; write the first comment in your own voice and stay available for two hours |
 | 2 | r/ClaudeAI Showcase | Reach Claude Code users with the exact multi-session problem | Recheck the live Showcase rules and disclose that you are the author |
 | 2 | r/commandline | Reach CLI users interested in process and port tooling | Read the community rules immediately before posting; skip if self-promotion is disallowed |
 | 3 | awesome-cli-apps, then awesome-mac | Long-tail discovery | Wait for real usage feedback; send one focused PR at a time |
@@ -56,8 +71,8 @@ draft still needs:
 - at least a few concrete user outcomes or quotations, used with permission.
 
 Product Hunt normally requires a significant update and roughly six months
-before relaunching the same product, so spending that launch on v0.3.2 would
-reduce the value of a later v1.0 launch.
+before relaunching the same product, so using that launch before the visual
+assets and user proof are ready would reduce the value of a later v1.0 launch.
 
 ## Launch-day checklist
 

@@ -33,7 +33,7 @@ Suggested section: `Utilities → Network Utilities`. Confirm the active section
 and alphabetical placement immediately before editing.
 
 ```markdown
-- [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev-server ports to projects and coding agents, coordinate sticky claims, and guard cross-project stops.
+- [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev-server ports to projects, coding agents, Docker/Compose containers, and PM2 apps; coordinate sticky claims and guard cross-project stops.
 ```
 
 Keep the PR to one README entry. In the PR body, disclose that you maintain the
@@ -48,7 +48,7 @@ Suggested section: `Developer Tools → Developer Utilities`. It may also fit
 is optional, so Developer Utilities is the more accurate primary category.
 
 ```markdown
-* [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev listeners to their project and launching agent; includes guarded stop, sticky port claims, and an optional SwiftBar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portmarshal) ![Freeware][Freeware Icon]
+* [PortMarshal](https://github.com/worsher/portmarshal) - Attribute local dev listeners to projects, agents, Docker/Compose containers, and PM2 apps; includes guarded stop, sticky port claims, and an optional SwiftBar view. [![Open-Source Software][OSS Icon]](https://github.com/worsher/portmarshal) ![Freeware][Freeware Icon]
 ```
 
 Follow the repository's exact icon and punctuation style when editing the live
@@ -72,8 +72,8 @@ accept a wrapper that depends on an npm-installed CLI.
 ```markdown
 ## What
 
-Adds PortMarshal, an MIT-licensed CLI for local dev-server attribution, sticky
-port claims, and guarded stops in multi-agent development.
+Adds PortMarshal, an MIT-licensed CLI for local dev-server attribution across
+coding agents, Docker/Compose, and PM2, with sticky claims and guarded stops.
 
 ## Disclosure
 

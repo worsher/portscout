@@ -28,10 +28,25 @@ service, which PortMarshal does not currently do.
 ## Can it always identify the coding agent?
 
 No. Attribution depends on process metadata visible to the current user. It
-follows the parent chain and recognizes known agent, terminal, Docker, launchd,
-and systemd signatures. Reparenting, containers, permission boundaries, or an
+follows the parent chain for known agent and terminal signatures, then enriches
+managed services from Docker/Compose, PM2, launchd, and systemd metadata.
+Reparenting, containers, permission boundaries, missing manager metadata, or an
 unknown launcher can reduce the result to a project, `detached`, or `?`. On
 Linux, listeners without visible PID metadata are omitted rather than guessed.
+
+## How are Docker and PM2 services handled?
+
+Docker Desktop may expose several containers through one shared backend PID, so
+PortMarshal inspects running-container metadata to split published ports by
+container, Compose project, and service and to recover the host project path.
+PM2 listeners are enriched from PM2's application metadata and displayed as
+`pm2:<app-name>` with the configured cwd; full PM2 environment variables are
+not retained.
+
+When an attributed managed target is stopped, PortMarshal delegates to
+`docker stop` or `pm2 stop`. It does not signal the shared Docker backend or a
+supervised PM2 child, and it refuses an unsafe raw stop when the manager identity
+needed for that action is unavailable.
 
 ## Does `detached` mean safe to kill?
 
@@ -45,7 +60,8 @@ the command, project, and PID before acting.
 For a listener attributed to another active project, `portmarshal stop` prints
 the attribution and returns exit code 3 instead of sending a signal. The user
 can explicitly override that decision with `--force`; on macOS, `--gui` can ask
-through a confirmation dialog. OS permissions still apply.
+through a confirmation dialog. Attributed Docker and PM2 targets are stopped
+through their manager commands. OS permissions still apply.
 
 ## Does it send process data anywhere?
 
@@ -77,7 +93,8 @@ background daemon and no runtime network request.
 - The exact PortMarshal command and output, preferably `--json` where supported.
 - The listener's real launcher and project.
 - What PortMarshal reported instead.
-- Whether tmux, Docker, launchd, systemd, an IDE, or a remote shell was involved.
+- Whether tmux, Docker/Compose, PM2, launchd, systemd, an IDE, or a remote shell
+  was involved.
 - A minimized command that reproduces the attribution or guard error.
 
 Use the repository's **Agent attribution error** issue form for repeatable
